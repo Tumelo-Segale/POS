@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SaleStation</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="shortcut icon" href="icon.png" type="image/x-icon">
+    <link rel="shortcut icon" href="icon-2.png" type="image/x-icon">
     <link
         href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap"
         rel="stylesheet" />
@@ -102,7 +102,8 @@
             gap: 12px;
         }
 
-        .auth-logo-icon {
+        .auth-logo-icon,
+        img {
             width: 56px;
             height: 56px;
             background: var(--black);
@@ -453,7 +454,8 @@
             overflow: hidden;
         }
 
-        .sidebar-logo-icon {
+        .sidebar-logo-icon,
+        img {
             width: 32px;
             height: 32px;
             min-width: 32px;
@@ -1019,7 +1021,7 @@
 
         .pos-item-btn {
             background: var(--white);
-            border: 1px solid var(--gray-100);
+            border: 1px solid var(--gray-400);
             border-radius: var(--radius);
             padding: 16px 14px;
             cursor: pointer;
@@ -1028,12 +1030,6 @@
             display: flex;
             flex-direction: column;
             gap: 6px;
-        }
-
-        .pos-item-btn:hover {
-            border-color: var(--black);
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-            transform: translateY(-1px);
         }
 
         .pos-item-name {
@@ -1502,11 +1498,7 @@
         <div id="login-page" class="auth-card">
             <div class="auth-logo">
                 <div class="auth-logo-icon">
-                    <svg width="26" height="26" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"
-                        stroke-linejoin="round" viewBox="0 0 24 24">
-                        <rect x="2" y="5" width="20" height="14" rx="2" />
-                        <line x1="2" y1="10" x2="22" y2="10" />
-                    </svg>
+                    <img src="/icon-2.png" alt="SaleStation">
                 </div>
                 <h1>SaleStation</h1>
                 <p>Welcome back.</p>
@@ -1532,11 +1524,7 @@
         <div id="register-page" class="auth-card hidden">
             <div class="auth-logo">
                 <div class="auth-logo-icon">
-                    <svg width="26" height="26" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"
-                        stroke-linejoin="round" viewBox="0 0 24 24">
-                        <rect x="2" y="5" width="20" height="14" rx="2" />
-                        <line x1="2" y1="10" x2="22" y2="10" />
-                    </svg>
+                    <img src="/icon-2.png" alt="SaleStation">
                 </div>
                 <h1>Register Business</h1>
                 <p>Step 1 of 2 — Business Details</p>
@@ -1614,11 +1602,7 @@
             <div class="sidebar-logo">
                 <div class="sidebar-logo-inner">
                     <div class="sidebar-logo-icon">
-                        <svg width="18" height="18" fill="none" stroke="#0a0a0a" stroke-width="2" stroke-linecap="round"
-                            stroke-linejoin="round" viewBox="0 0 24 24">
-                            <rect x="2" y="5" width="20" height="14" rx="2" />
-                            <line x1="2" y1="10" x2="22" y2="10" />
-                        </svg>
+                        <img src="/iconv2-3.png" alt="">
                     </div>
                     <span class="sidebar-logo-text">SaleStation</span>
                 </div>
@@ -2708,7 +2692,7 @@
         function openStatementsModal(isPremium) {
             openModal('Download Statement', `
             <p style="font-size:13px;color:var(--gray-500);margin-bottom:16px;">
-                ${isPremium ? 'Download your transaction statement as CSV.' : 'Statements available on the Premium plan only.'}
+                ${isPremium ? 'Download your transaction statement as CSV.' : 'Statements available on Premium plan only.'}
             </p>
             <button class="btn btn-outline btn-full" style="margin-bottom:8px;justify-content:flex-start;gap:10px;" onclick="downloadStatement('weekly')" ${isPremium ? '' : 'disabled'}>
                 ${Icon.download} Weekly Statement

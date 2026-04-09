@@ -2831,7 +2831,7 @@
                     </div>
                     ${nextPlan ? `<div class="alert alert-blue">${Icon.alert} Upgrade to <strong>Premium</strong> scheduled for ${formatDateShort(sub.expiresAt)}</div>` : ''}
                     <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap">
-                        ${biz.plan === 'starter' && !nextPlan ? `<button class="btn btn-primary" onclick="handleUpgrade()">Upgrade to Premium (R500/mo)</button>` : ''}
+                        ${biz.plan === 'starter' && !nextPlan ? `<button class="btn btn-primary" onclick="handleUpgrade()">Upgrade to Premium</button>` : ''}
                         ${sub.status === 'active' ? `<button class="btn btn-danger-outline" onclick="handleCancelSub()">Cancel Subscription</button>` : ''}
                     </div>
                 </div>

@@ -1892,7 +1892,7 @@
             if (!password || password.length < 6) { document.getElementById('reg-password').classList.add('invalid'); errors.push('Password (min. 6 chars)'); }
 
             if (errors.length) {
-                toast('Please fill in: ' + errors.join(', '), 'error');
+                toast('Please fill in all fields ', 'error');
                 return;
             }
 

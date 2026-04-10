@@ -2003,8 +2003,13 @@
             const daysLeft = Math.ceil((expires - now) / (1000 * 60 * 60 * 24));
             const graceLeft = Math.ceil((graceEnd - now) / (1000 * 60 * 60 * 24));
 
-            if (sub.status === 'cancelled') return { status: 'cancelled', label: 'Cancelled', badge: 'badge-red', active: false, inGrace: false };
-            if (now <= expires) return { status: 'active', label: 'Active', badge: 'badge-green', active: true, inGrace: false, daysLeft };
+            if (sub.status === 'cancelled') {
+                // Cancelled: still active until expiry date (no grace period)
+                if (now <= expires) return { status: 'cancelled', label: 'Cancelled', badge: 'badge-orange', active: true, inGrace: false, daysLeft, expiresAt: sub.expiresAt };
+                // Past expiry — fully expired, access denied
+                return { status: 'cancelled-expired', label: 'Cancelled', badge: 'badge-red', active: false, inGrace: false };
+            }
+            if (now <= expires) return { status: 'active', label: 'Active', badge: 'badge-green', active: true, inGrace: false, daysLeft, expiresAt: sub.expiresAt };
             if (grace > 0 && now <= graceEnd) return { status: 'grace', label: 'Grace Period', badge: 'badge-orange', active: true, inGrace: true, graceLeft };
             return { status: 'expired', label: 'Expired', badge: 'badge-red', active: false, inGrace: false };
         }
@@ -2062,6 +2067,12 @@
             } catch (e) {
                 startPolling();
             }
+            // Always run expiry check even when BroadcastChannel is used
+            wsSimInterval = wsSimInterval || setInterval(() => {
+                if (currentUser && currentUser.businessId) {
+                    checkCancelledSubscriptionExpiry(currentUser.businessId);
+                }
+            }, 5000);
         }
 
         function broadcastChange(newStore) {
@@ -2087,18 +2098,40 @@
                         const store = getStore();
                         const freshUser = store.users.find(u => u.id === currentUser.id);
                         if (freshUser && (freshUser.status === 'suspended' || freshUser.status === 'inactive')) {
-                            toast('Your account has been suspended. You will be logged out.', 'error');
-                            setTimeout(handleLogout, 2000);
+                            forceLogout('Your account has been suspended. You will be logged out.');
+                            return;
                         }
                         if (currentUser.businessId) {
                             const biz = store.businesses.find(b => b.id === currentUser.businessId);
                             if (biz && biz.status === 'inactive' && currentUser.role !== 'super-admin') {
-                                toast('Your business has been deactivated.', 'error');
-                                setTimeout(handleLogout, 2000);
+                                forceLogout('Your business has been deactivated.');
+                                return;
                             }
+                            // Check cancelled subscription expiry
+                            checkCancelledSubscriptionExpiry(currentUser.businessId);
                         }
                     }
                 }
+            }
+        }
+
+        // ============================================================
+        // CANCELLED SUBSCRIPTION EXPIRY ENFORCEMENT
+        // ============================================================
+        function checkCancelledSubscriptionExpiry(businessId) {
+            if (!currentUser || currentUser.role === 'super-admin') return;
+            const store = getStore();
+            const sub = store.subscriptions.find(s => s.businessId === businessId);
+            if (!sub || sub.status !== 'cancelled') return;
+            const now = new Date();
+            const expires = new Date(sub.expiresAt);
+            if (now > expires) {
+                // Deactivate the business and force logout everyone
+                updateStore(d => ({
+                    ...d,
+                    businesses: d.businesses.map(b => b.id === businessId ? { ...b, status: 'inactive' } : b)
+                }));
+                forceLogout('Your subscription has ended. You have been logged out.');
             }
         }
 
@@ -2112,6 +2145,10 @@
                         if (activeTab !== 'pos') renderContent(activeTab);
                         else refreshPOSItemsOnly();
                     }
+                }
+                // Periodically enforce cancelled subscription expiry
+                if (currentUser && currentUser.businessId) {
+                    checkCancelledSubscriptionExpiry(currentUser.businessId);
                 }
             }, 1500);
         }
@@ -2133,8 +2170,7 @@
             }, 28 * 60 * 1000);
             // Logout at 30 min
             sessionTimer = setTimeout(() => {
-                toast('Session expired. Logging out.', 'error');
-                handleLogout();
+                forceLogout('Session expired. Logging out.');
             }, 30 * 60 * 1000);
         }
 
@@ -2271,7 +2307,7 @@
             launchApp();
         }
 
-        function handleLogout() {
+        function performLogout() {
             if (wsSimInterval) clearInterval(wsSimInterval);
             clearTimeout(sessionTimer);
             clearTimeout(sessionWarnTimer);
@@ -2284,6 +2320,19 @@
             document.getElementById('login-email').value = '';
             document.getElementById('login-password').value = '';
             document.getElementById('session-warning').classList.remove('show');
+        }
+
+        function handleLogout() {
+            confirm2('Log Out', 'Are you sure you want to log out?').then(ok => {
+                if (!ok) return;
+                performLogout();
+            });
+        }
+
+        // Silent logout used for forced/automated logouts (expired session, suspension, etc.)
+        function forceLogout(message) {
+            if (message) toast(message, 'error');
+            setTimeout(performLogout, message ? 2000 : 0);
         }
 
         function selectPlan(plan) {
@@ -2423,13 +2472,14 @@
             const now = new Date().toISOString();
             const dur = PLAN_LIMITS[plan]?.durationDays || 30;
             const expiry = new Date(Date.now() + dur * 24 * 60 * 60 * 1000).toISOString();
+            const normalizedEmail = email.toLowerCase();
 
             updateStore(d => ({
                 ...d,
-                businesses: [...d.businesses, { id: bizId, name: sanitize(bizName), email: sanitize(email), plan, status: 'active', ownerId, createdAt: now }],
-                users: [...d.users, { id: ownerId, name: sanitize(ownerName), email: sanitize(email), password, role: 'admin', businessId: bizId, status: 'active' }],
+                businesses: [...d.businesses, { id: bizId, name: sanitize(bizName), email: normalizedEmail, plan, status: 'active', ownerId, createdAt: now }],
+                users: [...d.users, { id: ownerId, name: sanitize(ownerName), email: normalizedEmail, password, role: 'admin', businessId: bizId, status: 'active' }],
                 subscriptions: [...d.subscriptions, { businessId: bizId, plan, status: 'active', expiresAt: expiry }],
-                currentUser: { id: ownerId, name: sanitize(ownerName), email: sanitize(email), password, role: 'admin', businessId: bizId, status: 'active' }
+                currentUser: { id: ownerId, name: sanitize(ownerName), email: normalizedEmail, password, role: 'admin', businessId: bizId, status: 'active' }
             }));
 
             currentUser = getStore().currentUser;
@@ -2457,8 +2507,8 @@
             const defaultTab = currentUser.role === 'cashier' ? 'pos' : 'dashboard';
             navigate(defaultTab);
             initWebSocketSimulation();
-            // Restore sidebar collapse state
-            const collapsed = localStorage.getItem('sidebar_collapsed') === 'true';
+            // Restore sidebar collapse state (per user)
+            const collapsed = localStorage.getItem(`sidebar_collapsed_${currentUser.id}`) === 'true';
             if (collapsed) document.getElementById('sidebar').classList.add('collapsed');
         }
 
@@ -2544,7 +2594,7 @@
             else {
                 const sb = document.getElementById('sidebar');
                 sb.classList.toggle('collapsed');
-                localStorage.setItem('sidebar_collapsed', sb.classList.contains('collapsed'));
+                localStorage.setItem(`sidebar_collapsed_${currentUser.id}`, sb.classList.contains('collapsed'));
             }
         }
         function toggleSidebar() { handleHamburger(); }
@@ -2755,8 +2805,11 @@
             const maxAmount = Math.max(...weekData.map(d => d.amount), 1);
 
             const st = getSubStatus(bizId);
+            const expiringSoon = st && st.active && !st.inGrace && typeof st.daysLeft === 'number' && st.daysLeft <= 3 && st.daysLeft > 0;
             const subBanner = st && st.inGrace ? `<div class="alert alert-orange mb-20">${Icon.alert} Grace period: ${st.graceLeft} day(s) remaining. Renew your subscription to avoid suspension.</div>` :
-                (st && st.status === 'expired' ? `<div class="alert alert-red mb-20">${Icon.alert} Subscription expired. Functionality is suspended.</div>` : '');
+                (st && st.status === 'expired' ? `<div class="alert alert-red mb-20">${Icon.alert} Subscription expired. Functionality is suspended.</div>` :
+                    (st && st.status === 'cancelled' && st.active && st.daysLeft <= 3 ? `<div class="alert alert-red mb-20">${Icon.alert} Your cancelled subscription ends in <strong>${st.daysLeft} day(s)</strong>. Renew now to avoid losing access.</div>` :
+                        (expiringSoon ? `<div class="alert alert-accent mb-20">${Icon.alert} Subscription expires in <strong>${st.daysLeft} day(s)</strong>. <a href="#" onclick="navigate('subscriptions');return false;" style="color:inherit;font-weight:700">Renew now</a> to avoid interruption.</div>` : '')));
 
             area.innerHTML = `
     ${subBanner}
@@ -2955,7 +3008,7 @@
 
         function saveCashier(cashierId) {
             const name = document.getElementById('m-c-name').value.trim();
-            const email = document.getElementById('m-c-email').value.trim();
+            const email = document.getElementById('m-c-email').value.trim().toLowerCase();
             const contact = document.getElementById('m-c-contact').value.trim();
             const password = document.getElementById('m-c-pass').value;
             const locEl = document.getElementById('m-c-loc');
@@ -2967,7 +3020,7 @@
             if (cashierId) {
                 const existingCashier = store.users.find(u => u.id === cashierId);
                 const updatedPass = password ? password : existingCashier.password;
-                updateStore(d => ({ ...d, users: d.users.map(u => u.id === cashierId ? { ...u, name: sanitize(name), email: sanitize(email), contact, password: updatedPass, locationId } : u) }));
+                updateStore(d => ({ ...d, users: d.users.map(u => u.id === cashierId ? { ...u, name: sanitize(name), email, contact, password: updatedPass, locationId } : u) }));
                 addAuditLog('Updated cashier', name);
                 toast('Cashier updated', 'success');
             } else {
@@ -2983,7 +3036,7 @@
                     toast('A user with this email already exists', 'error'); return;
                 }
                 updateStore(d => ({
-                    ...d, users: [...d.users, { id: `cashier-${uid()}`, businessId: currentUser.businessId, name: sanitize(name), email: sanitize(email), contact, password, role: 'cashier', status: 'active', locationId }]
+                    ...d, users: [...d.users, { id: `cashier-${uid()}`, businessId: currentUser.businessId, name: sanitize(name), email, contact, password, role: 'cashier', status: 'active', locationId }]
                 }));
                 addAuditLog('Added cashier', name);
                 toast('Cashier added', 'success');
@@ -3271,11 +3324,12 @@
         function handlePOSCheckout() {
             if (posCart.length === 0) return;
             const total = posCart.reduce((a, c) => a + c.price * c.quantity, 0);
+            const itemsSummary = posCart.map(c => `${sanitize(c.name)} ×${c.quantity}`).join(', ');
             if (posPayMethod === 'card') {
-                openModal('Card Payment', `
+                openModal('Confirm Card Payment', `
       <div style="text-align:center;padding:16px 0">
         <div style="font-size:32px;font-weight:900;font-family:var(--font-mono);margin-bottom:8px">${formatCurrency(total)}</div>
-        <div style="font-size:13px;color:var(--gray-500);margin-bottom:24px">Present card to terminal to complete payment</div>
+        <div style="font-size:13px;color:var(--gray-500);margin-bottom:4px">Present card to terminal to complete payment</div>
         <div style="display:flex;gap:10px;">
           <button class="btn btn-outline btn-lg" style="flex:1" onclick="closeModal()">Cancel</button>
           <button class="btn btn-primary btn-lg" style="flex:2" onclick="closeModal();recordTransaction(${total},'card')">
@@ -3285,7 +3339,18 @@
       </div>
     `);
             } else {
-                recordTransaction(total, 'cash');
+                openModal('Confirm Cash Payment', `
+      <div style="text-align:center;padding:16px 0">
+        <div style="font-size:32px;font-weight:900;font-family:var(--font-mono);margin-bottom:8px">${formatCurrency(total)}</div>
+        <div style="font-size:13px;color:var(--gray-500);margin-bottom:4px">Confirm cash received from customer</div>
+        <div style="display:flex;gap:10px;">
+          <button class="btn btn-outline btn-lg" style="flex:1" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-primary btn-lg" style="flex:2" onclick="closeModal();recordTransaction(${total},'cash')">
+            ${Icon.checkCircle} Confirm Cash
+          </button>
+        </div>
+      </div>
+    `);
             }
         }
 
@@ -3313,38 +3378,58 @@
         // ============================================================
         // TRANSACTIONS
         // ============================================================
+        let txnFilterPeriod = 'today'; // 'today' | 'week' | 'month' | 'all'
+        // Note: page title says just "Transactions" — the filter buttons below show the active period
+
         function renderTransactions(area) {
             const store = getStore();
-            const txns = store.transactions.filter(t => t.businessId === currentUser.businessId);
-            const biz = store.businesses.find(b => b.id === currentUser.businessId);
-            const plan = biz?.plan || 'starter';
-            const limits = PLAN_LIMITS[plan];
+            const allTxns = store.transactions.filter(t => t.businessId === currentUser.businessId);
+            const now = new Date();
+            const today = now.toISOString().split('T')[0];
+
+            const filtered = allTxns.filter(t => {
+                const d = new Date(t.createdAt);
+                if (txnFilterPeriod === 'today') return t.createdAt.startsWith(today);
+                if (txnFilterPeriod === 'week') { const w = new Date(now); w.setDate(now.getDate() - 6); w.setHours(0, 0, 0, 0); return d >= w; }
+                if (txnFilterPeriod === 'month') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+                return true; // 'all'
+            });
+
+            const periodLabels = { today: 'Today', week: 'Last 7 Days', month: 'This Month', all: 'All Time' };
 
             area.innerHTML = `
     <div class="page-header">
-      <h2 class="page-title">Transactions (Today)</h2>
+      <h2 class="page-title">Transactions</h2>
       <button class="btn btn-outline" onclick="openStatementsModal()">${Icon.download} Download Statement</button>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap">
+      ${['today', 'week', 'month', 'all'].map(p => `
+        <button class="btn btn-sm ${txnFilterPeriod === p ? 'btn-primary' : 'btn-outline'}" onclick="setTxnFilter('${p}')">${periodLabels[p]}</button>
+      `).join('')}
     </div>
     <div class="card">
       <div class="table-wrapper">
         <table>
-          <thead><tr><th>Date & Time</th><th>Amount</th><th>Type</th></tr></thead>
+          <thead><tr><th>Date & Time</th><th>Cashier</th><th>Amount</th><th>Type</th></tr></thead>
           <tbody>
-            ${(() => {
-                    const today = new Date().toISOString().split('T')[0];
-                    const todayTxns = txns.filter(t => t.createdAt.startsWith(today));
-                    return todayTxns.length === 0 ? `<tr><td colspan="3"><div class="empty-state">No transactions today</div></td></tr>` :
-                        todayTxns.map(t => `<tr>
-                  <td class="text-muted">${formatDate(t.createdAt)}</td>
-                  <td><strong class="text-mono">${formatCurrency(t.amount)}</strong></td>
-                  <td><span class="badge ${t.type === 'cash' ? 'badge-green' : 'badge-blue'}">${t.type}</span></td>
-                </tr>`).join('');
-                })()}
+            ${filtered.length === 0
+                    ? `<tr><td colspan="4"><div class="empty-state">No transactions for ${periodLabels[txnFilterPeriod].toLowerCase()}</div></td></tr>`
+                    : [...filtered].reverse().map(t => `<tr>
+                <td class="text-muted">${formatDate(t.createdAt)}</td>
+                <td>${sanitize(t.cashierName || '—')}</td>
+                <td><strong class="text-mono">${formatCurrency(t.amount)}</strong></td>
+                <td><span class="badge ${t.type === 'cash' ? 'badge-green' : 'badge-blue'}">${t.type}</span></td>
+              </tr>`).join('')}
           </tbody>
         </table>
       </div>
     </div>
   `;
+        }
+
+        function setTxnFilter(period) {
+            txnFilterPeriod = period;
+            renderTransactions(document.getElementById('content-area'));
         }
 
         function openStatementsModal() {
@@ -3465,14 +3550,18 @@
             let badgeClass = 'badge-gray';
             if (st?.status === 'active') badgeClass = 'badge-green';
             else if (st?.status === 'grace') badgeClass = 'badge-orange';
-            else if (st?.status === 'expired' || st?.status === 'cancelled') badgeClass = 'badge-red';
+            else if (st?.status === 'cancelled') badgeClass = 'badge-orange';
+            else if (st?.status === 'cancelled-expired' || st?.status === 'expired') badgeClass = 'badge-red';
             // Trial badge
             if (biz.plan === 'trial') badgeClass = 'badge-accent';
+
+            // For cancelled-but-active: badge label is "Cancelled" (from getSubStatus), show expiry info separately
 
             area.innerHTML = `
     <div class="page-header"><h2 class="page-title">Subscription</h2></div>
     ${st?.inGrace ? `<div class="alert alert-orange mb-20">${Icon.alert} Grace period: ${st.graceLeft} day(s) remaining. Renew before expiry to keep your account active.</div>` : ''}
     ${st?.status === 'expired' ? `<div class="alert alert-red mb-20">${Icon.alert} Subscription expired. All functionality is suspended. Please renew.</div>` : ''}
+    ${st?.active && !st?.inGrace && typeof st?.daysLeft === 'number' && st?.daysLeft <= 3 && st?.daysLeft > 0 ? `<div class="alert alert-accent mb-20">${Icon.alert} <strong>Heads up:</strong> Your subscription expires in <strong>${st.daysLeft} day(s)</strong>. Renew before it ends to avoid interruption.</div>` : ''}
     <div class="card" style="max-width:560px">
       <div class="card-body">
         <div class="sub-plan-header">
@@ -3489,12 +3578,14 @@
         <div class="sub-detail-row"><span class="sub-detail-label">Statements</span><span class="sub-detail-val">${limits.statements.length === 0 ? 'None' : limits.statements.join(', ')}</span></div>
         <div class="sub-detail-row"><span class="sub-detail-label">Grace Period</span><span class="sub-detail-val">${limits.graceDays === 0 ? 'None' : limits.graceDays + ' days'}</span></div>
         ${nextPlan ? `<div class="alert alert-blue">${Icon.alert} Upgrade to <strong>${PLAN_LIMITS[nextPlan]?.label}</strong> scheduled at next renewal (${formatDateShort(sub.expiresAt)})</div>` : ''}
+        ${sub.status === 'cancelled' && st?.active ? `<div class="alert alert-orange" style="margin-top:12px">${Icon.alert} Subscription cancelled — access remains until <strong>${formatDateShort(sub.expiresAt)}</strong>. Renew before that date to avoid losing access.</div>` : ''}
         <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap">
           ${biz.plan === 'trial' ? `<button class="btn btn-primary" onclick="handleUpgrade('starter')">Upgrade to Starter</button>` : ''}
-          ${biz.plan === 'starter' && !nextPlan ? `<button class="btn btn-primary" onclick="handleUpgrade('premium')">Upgrade to Premium</button>` : ''}
+          ${biz.plan === 'starter' && !nextPlan && sub.status !== 'cancelled' ? `<button class="btn btn-primary" onclick="handleUpgrade('premium')">Upgrade to Premium</button>` : ''}
           ${biz.plan === 'trial' ? `<button class="btn btn-outline" onclick="handleUpgrade('premium')">Upgrade to Premium</button>` : ''}
           ${biz.plan !== 'trial' && st?.active && sub.status !== 'cancelled' ? `<button class="btn btn-danger-outline" onclick="handleCancelSub()">Cancel Subscription</button>` : ''}
-          ${(!st?.active || sub.status === 'cancelled') ? `<button class="btn btn-primary" onclick="handleRenew()">Renew Subscription</button>` : ''}
+          ${st?.status === 'cancelled-expired' || st?.status === 'expired' ? `<button class="btn btn-primary" onclick="handleRenew()">Renew Subscription</button>` : ''}
+          ${sub.status === 'cancelled' && st?.active ? `<button class="btn btn-primary" onclick="handleRenew()">Renew Subscription</button>` : ''}
         </div>
       </div>
     </div>
@@ -3526,8 +3617,44 @@
         function handleRenew() {
             const store = getStore();
             const biz = store.businesses.find(b => b.id === currentUser.businessId);
-            // Use isUpgrade=true so simulatePaystack calls completeUpgrade (which renews the plan)
-            simulatePaystack(biz.name, '', biz.email, '', biz.plan, true, null);
+            // Show plan picker (no trial — renewals must pick a paid plan)
+            openModal('Renew Subscription', `
+  <p style="font-size:13px;color:var(--gray-500);margin-bottom:16px">Choose a plan to renew your subscription. Trial plans are not available for renewals.</p>
+  <div id="renew-plan-starter" class="plan-card selected" onclick="selectRenewPlan('starter')" style="cursor:pointer">
+    <div class="plan-card-header"><span class="plan-name">Starter</span><span class="plan-price">R${PLAN_LIMITS.starter.price}<span>/mo</span></span></div>
+    <ul class="plan-features">
+      <li>${PLAN_LIMITS.starter.cashiers} cashier</li>
+      <li>${PLAN_LIMITS.starter.items} items</li>
+      <li>Weekly statement</li>
+    </ul>
+  </div>
+  <div id="renew-plan-premium" class="plan-card" onclick="selectRenewPlan('premium')" style="cursor:pointer">
+    <div class="plan-card-header"><span class="plan-name">Premium <span class="plan-badge-tag popular-badge">Popular</span></span><span class="plan-price">R${PLAN_LIMITS.premium.price}<span>/mo</span></span></div>
+    <ul class="plan-features">
+      <li>Unlimited cashiers</li>
+      <li>Unlimited items</li>
+      <li>Multi-store, Audit logs, All statements</li>
+    </ul>
+  </div>
+  <div style="display:flex;gap:10px;margin-top:16px">
+    <button class="btn btn-outline btn-lg" style="flex:1" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-primary btn-lg" style="flex:2" id="renew-continue-btn">Continue to Payment</button>
+  </div>
+`);
+            window._renewSelectedPlan = 'starter';
+            document.getElementById('renew-continue-btn').onclick = () => {
+                const plan = window._renewSelectedPlan || 'starter';
+                closeModal();
+                simulatePaystack(biz.name, '', biz.email, '', plan, true, null);
+            };
+        }
+
+        function selectRenewPlan(plan) {
+            window._renewSelectedPlan = plan;
+            ['starter', 'premium'].forEach(p => {
+                const el = document.getElementById('renew-plan-' + p);
+                if (el) el.classList.toggle('selected', p === plan);
+            });
         }
 
         function handleCancelSub() {
@@ -3600,18 +3727,18 @@
 
         function saveSettings() {
             const name = document.getElementById('s-name').value.trim();
-            const email = document.getElementById('s-email').value.trim();
+            const email = document.getElementById('s-email').value.trim().toLowerCase();
             const pass = document.getElementById('s-pass').value;
             if (!name || !email) { toast('Name and email are required', 'error'); return; }
 
             const store = getStore();
             // Email uniqueness check (excluding self)
-            const dup = store.users.find(u => u.email.toLowerCase() === email.toLowerCase() && u.id !== currentUser.id);
+            const dup = store.users.find(u => u.email.toLowerCase() === email && u.id !== currentUser.id);
             if (dup) { toast('This email is already in use', 'error'); return; }
 
             const updatedPass = pass ? pass : currentUser.password;
-            updateStore(d => ({ ...d, users: d.users.map(u => u.id === currentUser.id ? { ...u, name: sanitize(name), email: sanitize(email), password: updatedPass } : u) }));
-            currentUser = { ...currentUser, name: sanitize(name), email: sanitize(email), password: updatedPass };
+            updateStore(d => ({ ...d, users: d.users.map(u => u.id === currentUser.id ? { ...u, name: sanitize(name), email, password: updatedPass } : u) }));
+            currentUser = { ...currentUser, name: sanitize(name), email, password: updatedPass };
             updateStore(d => ({ ...d, currentUser }));
             document.getElementById('topbar-user-name').textContent = currentUser.name;
             document.getElementById('s-pass').value = '';
@@ -3634,7 +3761,7 @@
                     auditLogs: d.auditLogs.filter(l => l.businessId !== bizId),
                     currentUser: null
                 }));
-                handleLogout();
+                performLogout();
             });
         }
 

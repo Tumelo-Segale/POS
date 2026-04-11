@@ -1725,6 +1725,9 @@
             </div>
             <button class="btn btn-primary btn-full btn-lg" style="margin-top:8px"
                 onclick="handleLogin()">Login</button>
+            <div style="text-align:right;margin-top:8px"><a onclick="showForgotPassword()"
+                    style="font-size:12px;color:var(--gray-500);cursor:pointer;text-decoration:underline">Forgot
+                    password?</a></div>
             <div class="auth-switch">Don't have a business account? <a onclick="showPage('register-page')"><br>Register
                     Business</a></div>
         </div>
@@ -1971,12 +1974,14 @@
         // AUDIT LOG
         // ============================================================
         function addAuditLog(action, target) {
-            if (!currentUser || !currentUser.businessId) return;
+            if (!currentUser) return;
+            // Fix 4: Super admin has no businessId — use a sentinel value so logs are always recorded
+            const bizId = currentUser.businessId || 'super-admin';
             updateStore(d => ({
                 ...d,
                 auditLogs: [...d.auditLogs, {
                     id: `al-${uid()}`,
-                    businessId: currentUser.businessId,
+                    businessId: bizId,
                     userId: currentUser.id,
                     userName: currentUser.name,
                     role: currentUser.role,
@@ -2082,7 +2087,9 @@
         }
 
         function handleRemoteUpdate(data) {
-            if (data.type === 'STORE_UPDATE' && data.from !== currentUser?.id) {
+            // Fix 5: Re-read currentUser from store to avoid stale closure value
+            const freshCurrentUserId = currentUser?.id || getStore().currentUser?.id;
+            if (data.type === 'STORE_UPDATE' && data.from !== freshCurrentUserId) {
                 const elapsed = Date.now() - data.ts;
                 if (elapsed < 2000) {
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(data.store));
@@ -2162,8 +2169,14 @@
         function resetSessionTimer() {
             clearTimeout(sessionTimer);
             clearTimeout(sessionWarnTimer);
+            // Fix 18: Don't fire session warning on the login screen (no user logged in)
+            if (!currentUser) {
+                document.getElementById('session-warning').classList.remove('show');
+                return;
+            }
+            // Also suppress if the app container is hidden (we're on the auth screen)
+            if (document.getElementById('app-container')?.classList.contains('hidden')) return;
             document.getElementById('session-warning').classList.remove('show');
-            if (!currentUser) return;
             // Warn at 28 min
             sessionWarnTimer = setTimeout(() => {
                 document.getElementById('session-warning').classList.add('show');
@@ -2199,7 +2212,8 @@
             setTimeout(() => t.remove(), 3200);
         }
 
-        function confirm2(title, msg) {
+        function confirm2(title, msg, options) {
+            // Fix 19: Support custom ok button label and style (e.g. neutral logout vs danger delete)
             return new Promise(resolve => {
                 document.getElementById('confirm-title').textContent = title;
                 document.getElementById('confirm-message').textContent = msg;
@@ -2207,7 +2221,18 @@
                 overlay.classList.add('open');
                 const okBtn = document.getElementById('confirm-ok-btn');
                 const cancelBtn = document.getElementById('confirm-cancel-btn');
-                const cleanup = () => { overlay.classList.remove('open'); okBtn.onclick = null; cancelBtn.onclick = null; };
+                // Apply custom label/class if provided
+                okBtn.textContent = (options && options.okLabel) ? options.okLabel : 'Confirm';
+                okBtn.className = 'btn ' + ((options && options.okClass) ? options.okClass : 'btn-danger');
+                okBtn.style.flex = '1';
+                const cleanup = () => {
+                    overlay.classList.remove('open');
+                    okBtn.onclick = null;
+                    cancelBtn.onclick = null;
+                    // Reset to defaults
+                    okBtn.textContent = 'Confirm';
+                    okBtn.className = 'btn btn-danger';
+                };
                 okBtn.onclick = () => { cleanup(); resolve(true); };
                 cancelBtn.onclick = () => { cleanup(); resolve(false); };
             });
@@ -2281,6 +2306,38 @@
             showPage('register-plan-page');
         }
 
+        function showForgotPassword() {
+            // Fix 14: Password reset via email lookup (sets a temporary password displayed to user)
+            openModal('Reset Password', `
+    <p style="font-size:13px;color:var(--gray-500);margin-bottom:16px">Enter the email address associated with your account. A new temporary password will be shown.</p>
+    <div class="form-group"><label class="form-label">Email Address</label><input id="fp-email" class="form-input" type="email" placeholder="name@business.com" /></div>
+    <div style="display:flex;gap:10px;margin-top:4px">
+      <button class="btn btn-outline btn-lg" style="flex:1" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary btn-lg" style="flex:2" onclick="handleForgotPassword()">Reset Password</button>
+    </div>
+  `);
+        }
+
+        function handleForgotPassword() {
+            const email = document.getElementById('fp-email')?.value.trim().toLowerCase();
+            if (!email) { toast('Please enter your email address', 'error'); return; }
+            const store = getStore();
+            const user = store.users.find(u => u.email.toLowerCase() === email);
+            if (!user) { toast('No account found with that email address', 'error'); return; }
+            // Generate a simple temporary password
+            const tempPass = 'Tmp' + Math.random().toString(36).slice(2, 8).toUpperCase();
+            updateStore(d => ({ ...d, users: d.users.map(u => u.email.toLowerCase() === email ? { ...u, password: tempPass } : u) }));
+            closeModal();
+            openModal('Password Reset', `
+    <div style="text-align:center;padding:12px 0">
+      <p style="font-size:13px;color:var(--gray-600);margin-bottom:16px">Your temporary password is:</p>
+      <div style="background:var(--gray-50);border:1px solid var(--gray-200);border-radius:var(--radius);padding:14px;font-family:var(--font-mono);font-size:20px;font-weight:700;letter-spacing:.1em;margin-bottom:16px">${tempPass}</div>
+      <p style="font-size:12px;color:var(--gray-400);margin-bottom:20px">Please log in and change your password in Account Settings immediately.</p>
+      <button class="btn btn-primary btn-full btn-lg" onclick="closeModal()">OK, I've noted it</button>
+    </div>
+  `);
+        }
+
         function handleLogin() {
             const email = document.getElementById('login-email').value.trim();
             const pass = document.getElementById('login-password').value;
@@ -2323,7 +2380,8 @@
         }
 
         function handleLogout() {
-            confirm2('Log Out', 'Are you sure you want to log out?').then(ok => {
+            // Fix 19: Use neutral "Log Out" label — not danger red, since logout is not destructive
+            confirm2('Log Out', 'Are you sure you want to log out?', { okLabel: 'Log Out', okClass: 'btn-outline' }).then(ok => {
                 if (!ok) return;
                 performLogout();
             });
@@ -2558,7 +2616,6 @@
                 const store = getStore();
                 const biz = store.businesses.find(b => b.id === currentUser.businessId);
                 if (biz?.plan === 'premium') {
-                    // Inject multi-store and audit log after subscriptions
                     const subIdx = items.findIndex(i => i.id === 'subscriptions');
                     items.splice(subIdx + 1, 0,
                         { id: 'locations', label: 'Multi-Store', icon: 'location' },
@@ -2567,7 +2624,19 @@
                 }
             }
 
-            // Group: main items vs bottom
+            // Fix 16: Determine if subscription expiry badge should show
+            let subBadgeHTML = '';
+            if (currentUser.businessId) {
+                const st = getSubStatus(currentUser.businessId);
+                if (st && st.active && (st.inGrace || (typeof st.daysLeft === 'number' && st.daysLeft <= 7))) {
+                    const badgeColor = st.inGrace ? 'var(--orange)' : (st.daysLeft <= 3 ? 'var(--red)' : 'var(--accent)');
+                    const badgeLabel = st.inGrace ? 'Grace' : `${st.daysLeft}d`;
+                    subBadgeHTML = `<span style="margin-left:auto;background:${badgeColor};color:white;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;font-family:var(--font-mono)">${badgeLabel}</span>`;
+                } else if (st && !st.active) {
+                    subBadgeHTML = `<span style="margin-left:auto;background:var(--red);color:white;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;font-family:var(--font-mono)">!</span>`;
+                }
+            }
+
             const mainItems = items.filter(i => i.id !== 'contact' && i.id !== 'settings' && i.id !== 'subscriptions');
             const bottomItems = items.filter(i => ['contact', 'settings', 'subscriptions'].includes(i.id));
 
@@ -2584,6 +2653,7 @@
       <div class="nav-item" data-tab="${item.id}" onclick="navigate('${item.id}')">
         ${Icon[item.icon] || Icon.settings}
         <span class="nav-item-label">${item.label}</span>
+        ${item.id === 'subscriptions' ? subBadgeHTML : ''}
       </div>
     `).join('')}
   `;
@@ -2670,7 +2740,16 @@
         // ============================================================
         function renderSuperDashboard(area) {
             const store = getStore();
-            const revenue = store.businesses.reduce((a, b) => a + (PLAN_LIMITS[b.plan]?.price || 0), 0);
+            // Fix 11: Revenue = sum of active subscription plan prices (not just once per business, respects actual sub plan)
+            const revenue = store.subscriptions
+                .filter(s => s.status === 'active' || s.status === 'cancelled')
+                .reduce((a, s) => {
+                    const biz = store.businesses.find(b => b.id === s.businessId);
+                    if (!biz || biz.status !== 'active') return a;
+                    const subStatus = getSubStatus(s.businessId);
+                    if (!subStatus || !subStatus.active) return a;
+                    return a + (PLAN_LIMITS[biz.plan]?.price || 0);
+                }, 0);
             const active = store.businesses.filter(b => b.status === 'active').length;
             const msgs = store.messages.filter(m => !m.read).length;
             const total = store.businesses.length;
@@ -2695,7 +2774,10 @@
                   <td><span class="badge badge-gray">${b.plan}</span></td>
                   <td><span class="badge ${b.status === 'active' ? 'badge-green' : 'badge-red'}">${b.status}</span></td>
                   <td>${st ? `<span class="badge ${st.badge}">${st.label}</span>` : '-'}</td>
-                  <td><button class="btn btn-sm btn-outline" onclick="toggleBizStatus('${b.id}')">${b.status === 'active' ? 'Deactivate' : 'Activate'}</button></td>
+                  <td><div class="td-actions">
+                    <button class="btn btn-sm btn-outline" onclick="toggleBizStatus('${b.id}')">${b.status === 'active' ? 'Deactivate' : 'Activate'}</button>
+                    <button class="btn btn-sm btn-outline" onclick="viewBizDetails('${b.id}')">${Icon.history} View</button>
+                  </div></td>
                 </tr>`;
                     }).join('')}
           </tbody>
@@ -2703,6 +2785,33 @@
       </div>
     </div>
   `;
+        }
+
+        function viewBizDetails(bizId) {
+            // Fix 15: Super admin drill-down view for a business's transactions and items
+            const store = getStore();
+            const biz = store.businesses.find(b => b.id === bizId);
+            const items = store.items.filter(i => i.businessId === bizId);
+            const txns = store.transactions.filter(t => t.businessId === bizId).slice(-20).reverse();
+            openModal(`${sanitize(biz?.name || '')} — Details`, `
+    <div style="margin-bottom:16px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gray-400);font-family:var(--font-mono);margin-bottom:8px">Items (${items.length})</div>
+      ${items.length === 0 ? '<div class="empty-state" style="padding:12px">No items</div>' :
+                    `<div style="max-height:140px;overflow-y:auto;border:1px solid var(--gray-100);border-radius:var(--radius)">
+          <table style="width:100%;font-size:12px"><thead><tr style="border-bottom:1px solid var(--gray-100)"><th style="padding:6px 10px;color:var(--gray-400)">Name</th><th style="padding:6px 10px;color:var(--gray-400)">Price</th><th style="padding:6px 10px;color:var(--gray-400)">Status</th></tr></thead><tbody>
+          ${items.map(i => `<tr style="border-bottom:1px solid var(--gray-50)"><td style="padding:6px 10px">${sanitize(i.name)}</td><td style="padding:6px 10px;font-family:var(--font-mono)">${formatCurrency(i.price)}</td><td style="padding:6px 10px"><span class="badge ${i.status === 'active' ? 'badge-green' : 'badge-red'}" style="font-size:9px">${i.status}</span></td></tr>`).join('')}
+          </tbody></table></div>`}
+    </div>
+    <div>
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gray-400);font-family:var(--font-mono);margin-bottom:8px">Recent Transactions (last 20)</div>
+      ${txns.length === 0 ? '<div class="empty-state" style="padding:12px">No transactions</div>' :
+                    `<div style="max-height:160px;overflow-y:auto;border:1px solid var(--gray-100);border-radius:var(--radius)">
+          <table style="width:100%;font-size:12px"><thead><tr style="border-bottom:1px solid var(--gray-100)"><th style="padding:6px 10px;color:var(--gray-400)">Date</th><th style="padding:6px 10px;color:var(--gray-400)">Cashier</th><th style="padding:6px 10px;color:var(--gray-400)">Amount</th><th style="padding:6px 10px;color:var(--gray-400)">Type</th></tr></thead><tbody>
+          ${txns.map(t => `<tr style="border-bottom:1px solid var(--gray-50)"><td style="padding:6px 10px;color:var(--gray-500)">${formatDateShort(t.createdAt)}</td><td style="padding:6px 10px">${sanitize(t.cashierName || '')}</td><td style="padding:6px 10px;font-family:var(--font-mono);font-weight:700">${formatCurrency(t.amount)}</td><td style="padding:6px 10px"><span class="badge ${t.type === 'cash' ? 'badge-green' : 'badge-blue'}" style="font-size:9px">${t.type}</span></td></tr>`).join('')}
+          </tbody></table></div>`}
+    </div>
+    <button class="btn btn-outline btn-full" style="margin-top:16px" onclick="closeModal()">Close</button>
+  `);
         }
 
         function renderBusinesses(area) {
@@ -2725,7 +2834,10 @@
                   <td><span class="badge badge-gray">${b.plan}</span></td>
                   <td><span class="badge ${b.status === 'active' ? 'badge-green' : 'badge-red'}">${b.status}</span></td>
                   <td>${st ? `<span class="badge ${st.badge}">${st.label}</span>` : '-'}</td>
-                  <td><button class="btn btn-sm btn-outline" onclick="toggleBizStatus('${b.id}')">${b.status === 'active' ? 'Deactivate' : 'Activate'}</button></td>
+                  <td><div class="td-actions">
+                    <button class="btn btn-sm btn-outline" onclick="toggleBizStatus('${b.id}')">${b.status === 'active' ? 'Deactivate' : 'Activate'}</button>
+                    <button class="btn btn-sm btn-outline" onclick="viewBizDetails('${b.id}')">${Icon.history} View</button>
+                  </div></td>
                 </tr>`;
                     }).join('')}
           </tbody>
@@ -2735,11 +2847,57 @@
   `;
         }
 
+        function viewBizDetails(bizId) {
+            // Fix 15: Super admin drill-down view for a business's transactions and items
+            const store = getStore();
+            const biz = store.businesses.find(b => b.id === bizId);
+            const items = store.items.filter(i => i.businessId === bizId);
+            const txns = store.transactions.filter(t => t.businessId === bizId).slice(-20).reverse();
+            openModal(`${sanitize(biz?.name || '')} — Details`, `
+    <div style="margin-bottom:16px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gray-400);font-family:var(--font-mono);margin-bottom:8px">Items (${items.length})</div>
+      ${items.length === 0 ? '<div class="empty-state" style="padding:12px">No items</div>' :
+                    `<div style="max-height:140px;overflow-y:auto;border:1px solid var(--gray-100);border-radius:var(--radius)">
+          <table style="width:100%;font-size:12px"><thead><tr style="border-bottom:1px solid var(--gray-100)"><th style="padding:6px 10px;color:var(--gray-400)">Name</th><th style="padding:6px 10px;color:var(--gray-400)">Price</th><th style="padding:6px 10px;color:var(--gray-400)">Status</th></tr></thead><tbody>
+          ${items.map(i => `<tr style="border-bottom:1px solid var(--gray-50)"><td style="padding:6px 10px">${sanitize(i.name)}</td><td style="padding:6px 10px;font-family:var(--font-mono)">${formatCurrency(i.price)}</td><td style="padding:6px 10px"><span class="badge ${i.status === 'active' ? 'badge-green' : 'badge-red'}" style="font-size:9px">${i.status}</span></td></tr>`).join('')}
+          </tbody></table></div>`}
+    </div>
+    <div>
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gray-400);font-family:var(--font-mono);margin-bottom:8px">Recent Transactions (last 20)</div>
+      ${txns.length === 0 ? '<div class="empty-state" style="padding:12px">No transactions</div>' :
+                    `<div style="max-height:160px;overflow-y:auto;border:1px solid var(--gray-100);border-radius:var(--radius)">
+          <table style="width:100%;font-size:12px"><thead><tr style="border-bottom:1px solid var(--gray-100)"><th style="padding:6px 10px;color:var(--gray-400)">Date</th><th style="padding:6px 10px;color:var(--gray-400)">Cashier</th><th style="padding:6px 10px;color:var(--gray-400)">Amount</th><th style="padding:6px 10px;color:var(--gray-400)">Type</th></tr></thead><tbody>
+          ${txns.map(t => `<tr style="border-bottom:1px solid var(--gray-50)"><td style="padding:6px 10px;color:var(--gray-500)">${formatDateShort(t.createdAt)}</td><td style="padding:6px 10px">${sanitize(t.cashierName || '')}</td><td style="padding:6px 10px;font-family:var(--font-mono);font-weight:700">${formatCurrency(t.amount)}</td><td style="padding:6px 10px"><span class="badge ${t.type === 'cash' ? 'badge-green' : 'badge-blue'}" style="font-size:9px">${t.type}</span></td></tr>`).join('')}
+          </tbody></table></div>`}
+    </div>
+    <button class="btn btn-outline btn-full" style="margin-top:16px" onclick="closeModal()">Close</button>
+  `);
+        }
+
         function toggleBizStatus(id) {
+            const store = getStore();
+            const biz = store.businesses.find(b => b.id === id);
+            const newStatus = biz?.status === 'active' ? 'inactive' : 'active';
             updateStore(d => ({
                 ...d,
-                businesses: d.businesses.map(b => b.id === id ? { ...b, status: b.status === 'active' ? 'inactive' : 'active' } : b)
+                businesses: d.businesses.map(b => b.id === id ? { ...b, status: newStatus } : b)
             }));
+            // Fix 6: If deactivating, also suspend all users of that business so their sessions are evicted
+            if (newStatus === 'inactive') {
+                updateStore(d => ({
+                    ...d,
+                    users: d.users.map(u => u.businessId === id && u.role !== 'super-admin' ? { ...u, status: 'suspended' } : u),
+                    currentUser: d.currentUser && d.currentUser.businessId === id ? null : d.currentUser
+                }));
+                addAuditLog('Deactivated business', biz?.name);
+            } else {
+                // Reactivating — restore users to active
+                updateStore(d => ({
+                    ...d,
+                    users: d.users.map(u => u.businessId === id && u.role !== 'super-admin' ? { ...u, status: 'active' } : u)
+                }));
+                addAuditLog('Reactivated business', biz?.name);
+            }
             renderBusinesses(document.getElementById('content-area'));
             toast('Business status updated');
         }
@@ -2798,7 +2956,10 @@
             const yearlySales = txns.filter(t => new Date(t.createdAt).getFullYear() === now.getFullYear()).reduce((a, t) => a + t.amount, 0);
             const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
             const weekData = days.map((day, i) => {
-                const d = new Date(); d.setDate(d.getDate() - (d.getDay() - i));
+                // Fix 3: Use a fresh Date each iteration to avoid cross-month boundary errors
+                const d = new Date();
+                const diff = i - d.getDay();
+                d.setDate(d.getDate() + diff);
                 const ds = d.toISOString().split('T')[0];
                 return { day, amount: txns.filter(t => t.createdAt.startsWith(ds)).reduce((a, t) => a + t.amount, 0) };
             });
@@ -2844,14 +3005,22 @@
 
             area.innerHTML = `
     <div class="page-header">
-      <h2 class="page-title">Inventory <span style="font-size:13px;color:var(--gray-400);font-weight:400;font-family:var(--font-sans)">${items.length}${limits.items !== Infinity ? ' / ' + limits.items : ''}</span></h2>
-      <button class="btn btn-primary" onclick="openItemModal(null)">${Icon.plus} Add Item</button>
+      <h2 class="page-title">Inventory <span style="font-size:13px;color:var(--gray-400);font-weight:400;font-family:var(--font-sans)">${items.filter(i => i.status === 'active').length}${limits.items !== Infinity ? ' / ' + limits.items : ''} active</span></h2>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <div class="search-box"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--gray-400)"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="inv-search" type="text" placeholder="Search items..." style="padding-left:30px;height:34px" oninput="filterInventoryItems()" /></div>
+        <select id="inv-status-filter" class="form-select" style="height:34px;width:120px" onchange="filterInventoryItems()">
+          <option value="all">All</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+        <button class="btn btn-primary" onclick="openItemModal(null)">${Icon.plus} Add Item</button>
+      </div>
     </div>
     <div class="card">
       <div class="table-wrapper">
         <table>
           <thead><tr><th>Item Name</th><th>Price</th><th>Status</th><th>Actions</th></tr></thead>
-          <tbody>
+          <tbody id="inv-table-body">
             ${items.length === 0 ? `<tr><td colspan="4"><div class="empty-state">No items yet. Add your first item.</div></td></tr>` :
                     items.map(item => `<tr>
                 <td><strong>${item.name}</strong></td>
@@ -2868,6 +3037,34 @@
       </div>
     </div>
   `;
+        }
+
+        function filterInventoryItems() {
+            const q = (document.getElementById('inv-search')?.value || '').toLowerCase();
+            const statusFilter = document.getElementById('inv-status-filter')?.value || 'all';
+            const store = getStore();
+            const items = store.items.filter(i => i.businessId === currentUser.businessId);
+            const filtered = items.filter(i => {
+                const matchName = i.name.toLowerCase().includes(q);
+                const matchStatus = statusFilter === 'all' || i.status === statusFilter;
+                return matchName && matchStatus;
+            });
+            const tbody = document.getElementById('inv-table-body');
+            if (!tbody) return;
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4"><div class="empty-state">No items match your search.</div></td></tr>`;
+            } else {
+                tbody.innerHTML = filtered.map(item => `<tr>
+                <td><strong>${item.name}</strong></td>
+                <td class="text-mono">${formatCurrency(item.price)}</td>
+                <td><span class="badge ${item.status === 'active' ? 'badge-green' : 'badge-red'}">${item.status}</span></td>
+                <td><div class="td-actions">
+                  <button class="btn btn-sm btn-outline" onclick="openItemModal('${item.id}')">${Icon.edit}</button>
+                  <button class="btn btn-sm btn-outline" onclick="toggleItemStatus('${item.id}')">${item.status === 'active' ? 'Deactivate' : 'Activate'}</button>
+                  <button class="btn btn-sm btn-danger-outline" onclick="deleteItem('${item.id}')">${Icon.trash}</button>
+                </div></td>
+              </tr>`).join('');
+            }
         }
 
         function openItemModal(itemId) {
@@ -3204,7 +3401,10 @@
         // POS
         // ============================================================
         let posCart = [];
-        let posPayMethod = 'cash';
+        // Fix 20: Persist payment method in localStorage between navigations
+        let posPayMethod = (() => {
+            try { return localStorage.getItem('ss_pos_pay_method') || 'cash'; } catch (e) { return 'cash'; }
+        })();
         let _posItems = [];
 
         function refreshPOSItemCache() {
@@ -3248,10 +3448,26 @@
     </div>
   `;
             updateCartUI();
+            // Fix 20: Restore persisted payment method selection in the UI
+            setPayMethod(posPayMethod);
         }
 
         function renderPOSItemsHTML(items) {
-            if (items.length === 0) return '<div class="empty-state" style="grid-column:1/-1">No active items found.</div>';
+            if (items.length === 0) {
+                // Fix 12: Differentiate between "no items at all" vs "no search results", and guide trial users
+                const store = getStore();
+                const allItems = store.items.filter(i => i.businessId === currentUser.businessId);
+                const biz = store.businesses.find(b => b.id === currentUser.businessId);
+                if (allItems.length === 0) {
+                    const isTrial = biz?.plan === 'trial';
+                    const guideLink = currentUser.role === 'cashier' ? 'Ask your administrator to add inventory items.' : `<br><button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="navigate('items')">Go to Inventory →</button>`;
+                    return `<div class="empty-state" style="grid-column:1/-1;padding:48px 20px">
+                        <div style="font-weight:700;margin-bottom:6px">${isTrial ? 'Welcome to SaleStation!' : 'No items in inventory'}</div>
+                        <div style="font-size:12px;color:var(--gray-400)">You need to add items before you can use the POS.${guideLink}</div>
+                    </div>`;
+                }
+                return '<div class="empty-state" style="grid-column:1/-1">No items match your search.</div>';
+            }
             return items.map(item => `
     <button class="pos-item-btn" onclick="addToCart('${item.id}','${sanitize(item.name).replace(/'/g, "\\'")}',${item.price})">
       <div class="pos-item-name">${sanitize(item.name)}</div>
@@ -3305,7 +3521,19 @@
             const checkoutBtn = document.getElementById('pos-checkout-btn');
             if (subtotalEl) subtotalEl.textContent = fmt;
             if (totalEl) totalEl.textContent = fmt;
-            if (checkoutBtn) checkoutBtn.disabled = posCart.length === 0;
+            const cartTotal = posCart.reduce((a, c) => a + c.price * c.quantity, 0);
+            if (checkoutBtn) {
+                // Fix 8: Disable checkout if cart is empty OR total is R0.00, and show feedback
+                const isZero = cartTotal === 0 && posCart.length > 0;
+                checkoutBtn.disabled = posCart.length === 0 || isZero;
+                if (isZero) {
+                    checkoutBtn.textContent = 'Total is R0.00 — add items with a price';
+                    checkoutBtn.style.opacity = '0.5';
+                } else {
+                    checkoutBtn.textContent = posCart.length === 0 ? 'Complete Transaction' : `Complete Transaction`;
+                    checkoutBtn.style.opacity = '';
+                }
+            }
         }
 
         function changeQty(id, delta) {
@@ -3317,6 +3545,8 @@
 
         function setPayMethod(method) {
             posPayMethod = method;
+            // Fix 20: Save to localStorage so the selection persists between navigations
+            try { localStorage.setItem('ss_pos_pay_method', method); } catch (e) { }
             document.getElementById('pay-cash').classList.toggle('active', method === 'cash');
             document.getElementById('pay-card').classList.toggle('active', method === 'card');
         }
@@ -3355,6 +3585,8 @@
         }
 
         function recordTransaction(total, type) {
+            // Fix 17: Compute and store itemsSummary in the transaction record
+            const itemsSummary = posCart.map(c => `${sanitize(c.name)} ×${c.quantity}`).join(', ');
             const txn = {
                 id: `trx-${uid()}`,
                 businessId: currentUser.businessId,
@@ -3362,6 +3594,7 @@
                 cashierName: currentUser.name,
                 amount: total,
                 type,
+                itemsSummary,
                 createdAt: new Date().toISOString(),
             };
             updateStore(d => ({ ...d, transactions: [...d.transactions, txn] }));
@@ -3503,22 +3736,35 @@
         // ============================================================
         // ORDERS (cashier)
         // ============================================================
-        function renderOrders(area) {
+        // Fix 7: Orders page remembers selected date filter
+        let _ordersFilterDate = new Date().toISOString().split('T')[0];
+
+        function renderOrders(area, dateOverride) {
             const store = getStore();
-            const today = new Date().toISOString().split('T')[0];
-            const txns = store.transactions.filter(t => t.businessId === currentUser.businessId && t.cashierId === currentUser.id && t.createdAt.startsWith(today));
+            if (dateOverride !== undefined) _ordersFilterDate = dateOverride;
+            const filterDate = _ordersFilterDate;
+            const txns = store.transactions.filter(t => t.businessId === currentUser.businessId && t.cashierId === currentUser.id && t.createdAt.startsWith(filterDate));
+            const dayTotal = txns.reduce((a, t) => a + t.amount, 0);
 
             area.innerHTML = `
-    <div class="page-header"><h2 class="page-title">My Orders (Today)</h2></div>
+    <div class="page-header">
+      <h2 class="page-title">My Orders</h2>
+      <div style="display:flex;align-items:center;gap:8px">
+        <label style="font-size:12px;color:var(--gray-500);font-family:var(--font-mono)">Date:</label>
+        <input type="date" class="form-input" style="height:34px;width:160px" value="${filterDate}" onchange="renderOrders(document.getElementById('content-area'), this.value)" max="${new Date().toISOString().split('T')[0]}"/>
+      </div>
+    </div>
+    ${txns.length > 0 ? `<div style="margin-bottom:12px;font-size:13px;color:var(--gray-500)">Total for ${filterDate}: <strong class="text-mono">${formatCurrency(dayTotal)}</strong></div>` : ''}
     <div class="card">
       <div class="table-wrapper">
         <table>
-          <thead><tr><th>Time</th><th>Amount</th><th>Type</th></tr></thead>
+          <thead><tr><th>Time</th><th>Amount</th><th>Items</th><th>Type</th></tr></thead>
           <tbody>
-            ${txns.length === 0 ? `<tr><td colspan="3"><div class="empty-state">No orders today</div></td></tr>` :
+            ${txns.length === 0 ? `<tr><td colspan="4"><div class="empty-state">No orders for ${filterDate}</div></td></tr>` :
                     txns.map(t => `<tr>
                 <td class="text-muted">${formatDate(t.createdAt)}</td>
                 <td><strong class="text-mono">${formatCurrency(t.amount)}</strong></td>
+                <td class="text-muted text-sm">${t.itemsSummary || '—'}</td>
                 <td><span class="badge ${t.type === 'cash' ? 'badge-green' : 'badge-blue'}">${t.type}</span></td>
               </tr>`).join('')}
           </tbody>
@@ -3593,22 +3839,34 @@
         }
 
         function handleUpgrade(targetPlan) {
+            // Fix 1: Guard — trial plan cannot be selected as an upgrade target
+            if (targetPlan === 'trial') { toast('Trial plan is not available as an upgrade option.', 'error'); return; }
             const store = getStore();
             const biz = store.businesses.find(b => b.id === currentUser.businessId);
             simulatePaystack(biz.name, '', biz.email, '', targetPlan, true, null);
         }
 
         function completeUpgrade(targetPlan) {
+            // Fix 9: Prorate remaining days from current subscription cycle
+            const store = getStore();
+            const existingSub = store.subscriptions.find(s => s.businessId === currentUser.businessId);
             const dur = PLAN_LIMITS[targetPlan]?.durationDays || 30;
+            let newExpiry;
+            if (existingSub && existingSub.status === 'active' && existingSub.expiresAt) {
+                const remaining = new Date(existingSub.expiresAt) - new Date();
+                newExpiry = new Date(Date.now() + dur * 86400000 + Math.max(0, remaining)).toISOString();
+            } else {
+                newExpiry = new Date(Date.now() + dur * 86400000).toISOString();
+            }
             updateStore(d => ({
                 ...d,
                 businesses: d.businesses.map(b => b.id === currentUser.businessId ? { ...b, plan: targetPlan } : b),
                 subscriptions: d.subscriptions.map(s => s.businessId === currentUser.businessId
-                    ? { ...s, plan: targetPlan, nextPlan: null, status: 'active', expiresAt: new Date(Date.now() + dur * 86400000).toISOString() }
+                    ? { ...s, plan: targetPlan, nextPlan: null, status: 'active', expiresAt: newExpiry }
                     : s)
             }));
             addAuditLog(`Upgraded plan to ${targetPlan}`, '');
-            toast(`Upgraded to ${PLAN_LIMITS[targetPlan]?.label}! Reloading...`, 'success');
+            toast(`Upgraded to ${PLAN_LIMITS[targetPlan]?.label}! Remaining days from current cycle credited.`, 'success');
             // Rebuild sidebar for premium features
             buildSidebar();
             setTimeout(() => renderSubscriptions(document.getElementById('content-area')), 400);
@@ -3662,6 +3920,9 @@
             const sub = store.subscriptions.find(s => s.businessId === currentUser.businessId);
             confirm2('Cancel Subscription', `Your plan stays active until ${formatDateShort(sub.expiresAt)}. Cancel anyway?`).then(ok => {
                 if (!ok) return;
+                // Fix 10: Immediately disable the cancel button to prevent double-click flicker
+                const cancelBtn = document.querySelector('[onclick="handleCancelSub()"]');
+                if (cancelBtn) { cancelBtn.disabled = true; cancelBtn.textContent = 'Cancelling...'; }
                 updateStore(d => ({ ...d, subscriptions: d.subscriptions.map(s => s.businessId === currentUser.businessId ? { ...s, status: 'cancelled' } : s) }));
                 toast('Subscription cancelled.');
                 renderSubscriptions(document.getElementById('content-area'));

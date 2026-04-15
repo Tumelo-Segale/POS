@@ -428,6 +428,12 @@
             width: 100%
         }
 
+        .active-cat {
+            background: var(--black) !important;
+            color: var(--white) !important;
+            border-color: var(--black) !important;
+        }
+
         /* LAYOUT */
         #app-container {
             display: flex;
@@ -2431,7 +2437,7 @@
         // ============================================================
         const PAYSTACK_PUBLIC_KEY = 'pk_test_328d06e1e7acac75cab1175db7c135a8f1697132';
 
-        function simulatePaystack(bizName, ownerName, email, password, plan, isUpgrade, onSuccess) {
+        function simulatePaystack(bizName, ownerName, email, password, plan, isUpgrade, onSuccess, isRenew) {
             const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.starter;
             const price = limits.price;
 
@@ -2460,7 +2466,8 @@
                     if (btn) { btn.classList.add('loading-btn'); btn.disabled = true; }
                     setTimeout(() => {
                         closeModal();
-                        if (isUpgrade) { completeUpgrade(plan); }
+                        if (isRenew) { completeRenew(plan); }
+                        else if (isUpgrade) { completeUpgrade(plan); }
                         else { completeRegistration(bizName, ownerName, email, password, plan); }
                     }, 600);
                 };
@@ -2513,7 +2520,9 @@
                         // Payment verified by Paystack — process on our side
                         closeModal();
                         toast('Payment successful! Setting up your account...', 'success');
-                        if (isUpgrade) {
+                        if (isRenew) {
+                            completeRenew(plan);
+                        } else if (isUpgrade) {
                             completeUpgrade(plan);
                         } else {
                             completeRegistration(bizName, ownerName, email, password, plan);
@@ -2776,7 +2785,6 @@
                   <td>${st ? `<span class="badge ${st.badge}">${st.label}</span>` : '-'}</td>
                   <td><div class="td-actions">
                     <button class="btn btn-sm btn-outline" onclick="toggleBizStatus('${b.id}')">${b.status === 'active' ? 'Deactivate' : 'Activate'}</button>
-                    <button class="btn btn-sm btn-outline" onclick="viewBizDetails('${b.id}')">${Icon.history} View</button>
                   </div></td>
                 </tr>`;
                     }).join('')}
@@ -2836,7 +2844,6 @@
                   <td>${st ? `<span class="badge ${st.badge}">${st.label}</span>` : '-'}</td>
                   <td><div class="td-actions">
                     <button class="btn btn-sm btn-outline" onclick="toggleBizStatus('${b.id}')">${b.status === 'active' ? 'Deactivate' : 'Activate'}</button>
-                    <button class="btn btn-sm btn-outline" onclick="viewBizDetails('${b.id}')">${Icon.history} View</button>
                   </div></td>
                 </tr>`;
                     }).join('')}
@@ -3016,14 +3023,22 @@
         <button class="btn btn-primary" onclick="openItemModal(null)">${Icon.plus} Add Item</button>
       </div>
     </div>
+    <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
+      <button class="btn btn-sm btn-outline inv-cat-btn active-cat" data-cat="all" onclick="setInvCategory('all')">All</button>
+      <button class="btn btn-sm btn-outline inv-cat-btn" data-cat="Sweets & Snacks" onclick="setInvCategory('Sweets &amp; Snacks')">Sweets & Snacks</button>
+      <button class="btn btn-sm btn-outline inv-cat-btn" data-cat="Meals" onclick="setInvCategory('Meals')">Meals</button>
+      <button class="btn btn-sm btn-outline inv-cat-btn" data-cat="Drinks" onclick="setInvCategory('Drinks')">Drinks</button>
+      <button class="btn btn-sm btn-outline inv-cat-btn" data-cat="Other" onclick="setInvCategory('Other')">Other</button>
+    </div>
     <div class="card">
       <div class="table-wrapper">
         <table>
-          <thead><tr><th>Item Name</th><th>Price</th><th>Status</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Item Name</th><th>Category</th><th>Price</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody id="inv-table-body">
-            ${items.length === 0 ? `<tr><td colspan="4"><div class="empty-state">No items yet. Add your first item.</div></td></tr>` :
+            ${items.length === 0 ? `<tr><td colspan="5"><div class="empty-state">No items yet. Add your first item.</div></td></tr>` :
                     items.map(item => `<tr>
                 <td><strong>${item.name}</strong></td>
+                <td><span class="badge badge-gray" style="font-size:11px">${item.category || 'Other'}</span></td>
                 <td class="text-mono">${formatCurrency(item.price)}</td>
                 <td><span class="badge ${item.status === 'active' ? 'badge-green' : 'badge-red'}">${item.status}</span></td>
                 <td><div class="td-actions">
@@ -3037,25 +3052,41 @@
       </div>
     </div>
   `;
+            // Restore active category if set
+            const activeCat = window._invActiveCat || 'all';
+            document.querySelectorAll('.inv-cat-btn').forEach(b => b.classList.toggle('active-cat', b.dataset.cat === activeCat));
+        }
+
+        let _invActiveCat = 'all';
+        window._invActiveCat = 'all';
+
+        function setInvCategory(cat) {
+            _invActiveCat = cat;
+            window._invActiveCat = cat;
+            document.querySelectorAll('.inv-cat-btn').forEach(b => b.classList.toggle('active-cat', b.dataset.cat === cat));
+            filterInventoryItems();
         }
 
         function filterInventoryItems() {
             const q = (document.getElementById('inv-search')?.value || '').toLowerCase();
             const statusFilter = document.getElementById('inv-status-filter')?.value || 'all';
+            const catFilter = window._invActiveCat || 'all';
             const store = getStore();
             const items = store.items.filter(i => i.businessId === currentUser.businessId);
             const filtered = items.filter(i => {
                 const matchName = i.name.toLowerCase().includes(q);
                 const matchStatus = statusFilter === 'all' || i.status === statusFilter;
-                return matchName && matchStatus;
+                const matchCat = catFilter === 'all' || (i.category || 'Other') === catFilter;
+                return matchName && matchStatus && matchCat;
             });
             const tbody = document.getElementById('inv-table-body');
             if (!tbody) return;
             if (filtered.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="4"><div class="empty-state">No items match your search.</div></td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state">No items match your search.</div></td></tr>`;
             } else {
                 tbody.innerHTML = filtered.map(item => `<tr>
                 <td><strong>${item.name}</strong></td>
+                <td><span class="badge badge-gray" style="font-size:11px">${item.category || 'Other'}</span></td>
                 <td class="text-mono">${formatCurrency(item.price)}</td>
                 <td><span class="badge ${item.status === 'active' ? 'badge-green' : 'badge-red'}">${item.status}</span></td>
                 <td><div class="td-actions">
@@ -3070,8 +3101,11 @@
         function openItemModal(itemId) {
             const store = getStore();
             const item = itemId ? store.items.find(i => i.id === itemId) : null;
+            const cats = ['Sweets & Snacks', 'Meals', 'Drinks', 'Other'];
+            const catOptions = cats.map(c => `<option value="${c}" ${(item?.category || 'Other') === c ? 'selected' : ''}>${c}</option>`).join('');
             openModal(item ? 'Edit Item' : 'Add New Item', `
     <div class="form-group"><label class="form-label">Item Name</label><input id="m-item-name" class="form-input" value="${item ? sanitize(item.name) : ''}" placeholder="e.g. Coca Cola 500ml"/></div>
+    <div class="form-group"><label class="form-label">Category</label><select id="m-item-cat" class="form-select">${catOptions}</select></div>
     <div class="form-group"><label class="form-label">Price (R)</label><input id="m-item-price" class="form-input" type="number" min="0" step="0.01" value="${item ? item.price : ''}" placeholder="0.00"/></div>
     <button class="btn btn-primary btn-full btn-lg" onclick="saveItem('${itemId || ''}')">${item ? 'Update Item' : 'Add Item'}</button>
   `);
@@ -3080,6 +3114,7 @@
         function saveItem(itemId) {
             const name = document.getElementById('m-item-name').value.trim();
             const price = parseFloat(document.getElementById('m-item-price').value);
+            const category = document.getElementById('m-item-cat')?.value || 'Other';
             if (!name || isNaN(price) || price < 0) { toast('Please fill in all fields correctly', 'error'); return; }
 
             const store = getStore();
@@ -3087,7 +3122,7 @@
             const limits = PLAN_LIMITS[biz?.plan] || PLAN_LIMITS.starter;
 
             if (itemId) {
-                updateStore(d => ({ ...d, items: d.items.map(i => i.id === itemId ? { ...i, name: sanitize(name), price } : i) }));
+                updateStore(d => ({ ...d, items: d.items.map(i => i.id === itemId ? { ...i, name: sanitize(name), price, category } : i) }));
                 addAuditLog('Updated item', name);
                 toast('Item updated', 'success');
             } else {
@@ -3096,7 +3131,7 @@
                     toast(`${biz?.plan} plan limit: ${limits.items} items. Upgrade to add more.`, 'error'); return;
                 }
                 updateStore(d => ({
-                    ...d, items: [...d.items, { id: `item-${uid()}`, businessId: currentUser.businessId, name: sanitize(name), price, status: 'active' }]
+                    ...d, items: [...d.items, { id: `item-${uid()}`, businessId: currentUser.businessId, name: sanitize(name), price, category, status: 'active' }]
                 }));
                 addAuditLog('Added item', name);
                 toast('Item added', 'success');
@@ -3418,7 +3453,12 @@
             refreshPOSItemCache();
             const searchInput = document.getElementById('pos-search-input');
             const q = searchInput ? searchInput.value.toLowerCase() : '';
-            const filtered = _posItems.filter(i => i.name.toLowerCase().includes(q));
+            const cat = window._posActiveCat || 'all';
+            const filtered = _posItems.filter(i => {
+                const matchName = i.name.toLowerCase().includes(q);
+                const matchCat = cat === 'all' || (i.category || 'Other') === cat;
+                return matchName && matchCat;
+            });
             const grid = document.getElementById('pos-items-grid');
             if (grid) grid.innerHTML = renderPOSItemsHTML(filtered);
         }
@@ -3430,6 +3470,12 @@
     <div class="pos-layout">
       <div class="pos-items-panel">
         <div class="pos-search">${Icon.search}<input id="pos-search-input" type="text" placeholder="Search items..." oninput="filterPOSItems()"/></div>
+        <div style="display:flex;gap:6px;padding:0 0 10px 0;flex-wrap:wrap">
+          <button class="btn btn-sm btn-outline pos-cat-btn active-cat" data-cat="all" onclick="setPOSCategory('all')">All</button>
+          <button class="btn btn-sm btn-outline pos-cat-btn" data-cat="Sweets & Snacks" onclick="setPOSCategory('Sweets &amp; Snacks')">Sweets & Snacks</button>
+          <button class="btn btn-sm btn-outline pos-cat-btn" data-cat="Meals" onclick="setPOSCategory('Meals')">Meals</button>
+          <button class="btn btn-sm btn-outline pos-cat-btn" data-cat="Drinks" onclick="setPOSCategory('Drinks')">Drinks</button>
+        </div>
         <div class="pos-items-grid" id="pos-items-grid">${renderPOSItemsHTML(_posItems)}</div>
       </div>
       <div class="pos-cart">
@@ -3450,6 +3496,9 @@
             updateCartUI();
             // Fix 20: Restore persisted payment method selection in the UI
             setPayMethod(posPayMethod);
+            // Restore active POS category
+            window._posActiveCat = window._posActiveCat || 'all';
+            document.querySelectorAll('.pos-cat-btn').forEach(b => b.classList.toggle('active-cat', b.dataset.cat === window._posActiveCat));
         }
 
         function renderPOSItemsHTML(items) {
@@ -3476,9 +3525,20 @@
   `).join('');
         }
 
+        function setPOSCategory(cat) {
+            window._posActiveCat = cat;
+            document.querySelectorAll('.pos-cat-btn').forEach(b => b.classList.toggle('active-cat', b.dataset.cat === cat));
+            filterPOSItems();
+        }
+
         function filterPOSItems() {
             const q = document.getElementById('pos-search-input').value.toLowerCase();
-            const filtered = _posItems.filter(i => i.name.toLowerCase().includes(q));
+            const cat = window._posActiveCat || 'all';
+            const filtered = _posItems.filter(i => {
+                const matchName = i.name.toLowerCase().includes(q);
+                const matchCat = cat === 'all' || (i.category || 'Other') === cat;
+                return matchName && matchCat;
+            });
             document.getElementById('pos-items-grid').innerHTML = renderPOSItemsHTML(filtered);
         }
 
@@ -3872,6 +3932,31 @@
             setTimeout(() => renderSubscriptions(document.getElementById('content-area')), 400);
         }
 
+        function completeRenew(newPlan) {
+            // Renewal: add new plan's duration on top of any remaining time
+            const store = getStore();
+            const existingSub = store.subscriptions.find(s => s.businessId === currentUser.businessId);
+            const dur = PLAN_LIMITS[newPlan]?.durationDays || 30;
+            let newExpiry;
+            if (existingSub && existingSub.expiresAt) {
+                const remaining = new Date(existingSub.expiresAt) - new Date();
+                newExpiry = new Date(Date.now() + dur * 86400000 + Math.max(0, remaining)).toISOString();
+            } else {
+                newExpiry = new Date(Date.now() + dur * 86400000).toISOString();
+            }
+            updateStore(d => ({
+                ...d,
+                businesses: d.businesses.map(b => b.id === currentUser.businessId ? { ...b, plan: newPlan } : b),
+                subscriptions: d.subscriptions.map(s => s.businessId === currentUser.businessId
+                    ? { ...s, plan: newPlan, status: 'active', expiresAt: newExpiry }
+                    : s)
+            }));
+            addAuditLog(`Renewed subscription to ${newPlan}`, '');
+            toast(`Subscription renewed! Duration added to your remaining time.`, 'success');
+            buildSidebar();
+            setTimeout(() => renderSubscriptions(document.getElementById('content-area')), 400);
+        }
+
         function handleRenew() {
             const store = getStore();
             const biz = store.businesses.find(b => b.id === currentUser.businessId);
@@ -3903,7 +3988,7 @@
             document.getElementById('renew-continue-btn').onclick = () => {
                 const plan = window._renewSelectedPlan || 'starter';
                 closeModal();
-                simulatePaystack(biz.name, '', biz.email, '', plan, true, null);
+                simulatePaystack(biz.name, '', biz.email, '', plan, false, null, true);
             };
         }
 

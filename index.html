@@ -3512,7 +3512,7 @@
                     const guideLink = currentUser.role === 'cashier' ? 'Ask your administrator to add inventory items.' : `<br><button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="navigate('items')">Go to Inventory →</button>`;
                     return `<div class="empty-state" style="grid-column:1/-1;padding:48px 20px">
                         <div style="font-weight:700;margin-bottom:6px">${isTrial ? 'Welcome to SaleStation!' : 'No items in inventory'}</div>
-                        <div style="font-size:12px;color:var(--gray-400)">You need to add items before you can use the POS.${guideLink}</div>
+                        <div style="font-size:12px;color:var(--gray-400)">You need to add items before you can use the POS. ${guideLink}</div>
                     </div>`;
                 }
                 return '<div class="empty-state" style="grid-column:1/-1">No items match your search.</div>';

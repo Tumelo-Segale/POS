@@ -1957,9 +1957,13 @@
                 const d = localStorage.getItem(STORAGE_KEY);
                 if (!d) { saveStore(initialData); return JSON.parse(JSON.stringify(initialData)); }
                 const s = JSON.parse(d);
-                // Ensure new keys exist on old stores
+                // Migrate: ensure new top-level arrays exist
                 if (!s.locations) s.locations = [];
                 if (!s.auditLogs) s.auditLogs = [];
+                // Migrate: items get stock: null if missing
+                if (s.items) s.items = s.items.map(i => ({ stock: null, ...i }));
+                // Migrate: transactions get receiptId if missing
+                if (s.transactions) s.transactions = s.transactions.map(t => t.receiptId ? t : { ...t, receiptId: null });
                 return s;
             } catch (e) { return JSON.parse(JSON.stringify(initialData)); }
         }
@@ -2100,8 +2104,10 @@
                 if (elapsed < 2000) {
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(data.store));
                     if (activeTab && currentUser) {
-                        // Preserve POS cart — only re-render non-POS tabs
-                        if (activeTab !== 'pos') {
+                        if (activeTab === 'dashboard') {
+                            // Animate chart bars in-place — no full re-render flicker
+                            updateDashboardChart();
+                        } else if (activeTab !== 'pos') {
                             renderContent(activeTab);
                         } else {
                             // For POS: refresh item list without resetting cart
@@ -2155,8 +2161,14 @@
                 if (current !== lastSeen) {
                     lastSeen = current;
                     if (activeTab && currentUser) {
-                        if (activeTab !== 'pos') renderContent(activeTab);
-                        else refreshPOSItemsOnly();
+                        if (activeTab === 'dashboard') {
+                            // Animate chart in-place rather than full re-render
+                            updateDashboardChart();
+                        } else if (activeTab !== 'pos') {
+                            renderContent(activeTab);
+                        } else {
+                            refreshPOSItemsOnly();
+                        }
                     }
                 }
                 // Periodically enforce cancelled subscription expiry
@@ -2193,7 +2205,13 @@
             }, 30 * 60 * 1000);
         }
 
-        ['mousemove', 'keydown', 'click', 'touchstart'].forEach(e => {
+        let _lastSessionReset = 0;
+        function debouncedResetSession() {
+            const now = Date.now();
+            if (now - _lastSessionReset > 10000) { _lastSessionReset = now; resetSessionTimer(); }
+        }
+        document.addEventListener('mousemove', debouncedResetSession, { passive: true });
+        ['keydown', 'click', 'touchstart'].forEach(e => {
             document.addEventListener(e, resetSessionTimer, { passive: true });
         });
 
@@ -2202,6 +2220,10 @@
         // ============================================================
         function sanitize(str) {
             return String(str).replace(/[<>"'&]/g, c => ({ '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '&': '&amp;' }[c]));
+        }
+        // Safe attribute value — strips all quotes/backticks so it can't break out of onclick="..." context
+        function safeAttr(str) {
+            return String(str).replace(/["'`<>&]/g, '');
         }
 
         function formatCurrency(n) { return 'R' + Number(n).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
@@ -2330,8 +2352,10 @@
             const store = getStore();
             const user = store.users.find(u => u.email.toLowerCase() === email);
             if (!user) { toast('No account found with that email address', 'error'); return; }
-            // Generate a simple temporary password
-            const tempPass = 'Tmp' + Math.random().toString(36).slice(2, 8).toUpperCase();
+            // Generate a cryptographically stronger temporary password
+            const arr = new Uint32Array(2);
+            crypto.getRandomValues(arr);
+            const tempPass = 'T' + arr[0].toString(36).toUpperCase() + arr[1].toString(36).toUpperCase().slice(0, 4);
             updateStore(d => ({ ...d, users: d.users.map(u => u.email.toLowerCase() === email ? { ...u, password: tempPass } : u) }));
             closeModal();
             openModal('Password Reset', `
@@ -2612,6 +2636,7 @@
                 { id: 'pos', label: 'POS', icon: 'cart' },
                 { id: 'items', label: 'Items', icon: 'package' },
                 { id: 'orders', label: 'My Orders', icon: 'history' },
+                { id: 'contact', label: 'Contact Support', icon: 'mail' },
                 { id: 'settings', label: 'Settings', icon: 'settings' },
             ]
         };
@@ -2681,6 +2706,19 @@
         function closeMobileSidebar() { document.getElementById('sidebar').classList.remove('mobile-open'); document.getElementById('sidebar-overlay').classList.remove('open'); }
 
         function navigate(tab) {
+            // Warn if leaving POS with items in the cart
+            if (activeTab === 'pos' && tab !== 'pos' && posCart.length > 0) {
+                confirm2('Leave POS?', 'You have items in the cart. Navigating away will clear the cart.', { okLabel: 'Leave & Clear', okClass: 'btn-danger' }).then(ok => {
+                    if (!ok) return;
+                    posCart = [];
+                    _doNavigate(tab);
+                });
+                return;
+            }
+            _doNavigate(tab);
+        }
+
+        function _doNavigate(tab) {
             // Gate: check subscription still active (skip for super-admin)
             if (currentUser.role !== 'super-admin' && currentUser.businessId && tab !== 'subscriptions' && tab !== 'settings' && tab !== 'contact') {
                 const active = enforceSubscription(currentUser.businessId);
@@ -2726,6 +2764,7 @@
                 if (tab === 'pos') return renderPOS(area);
                 if (tab === 'items') return renderItems(area);
                 if (tab === 'orders') return renderOrders(area);
+                if (tab === 'contact') return renderContact(area);
                 if (tab === 'settings') return renderSettings(area);
             }
         }
@@ -2751,7 +2790,7 @@
             const store = getStore();
             // Fix 11: Revenue = sum of active subscription plan prices (not just once per business, respects actual sub plan)
             const revenue = store.subscriptions
-                .filter(s => s.status === 'active' || s.status === 'cancelled')
+                .filter(s => s.status === 'active')
                 .reduce((a, s) => {
                     const biz = store.businesses.find(b => b.id === s.businessId);
                     if (!biz || biz.status !== 'active') return a;
@@ -2885,27 +2924,21 @@
             const store = getStore();
             const biz = store.businesses.find(b => b.id === id);
             const newStatus = biz?.status === 'active' ? 'inactive' : 'active';
+            // Update business status and users in one shot — do NOT force logout or redirect super admin
             updateStore(d => ({
                 ...d,
-                businesses: d.businesses.map(b => b.id === id ? { ...b, status: newStatus } : b)
+                businesses: d.businesses.map(b => b.id === id ? { ...b, status: newStatus } : b),
+                users: d.users.map(u => u.businessId === id && u.role !== 'super-admin'
+                    ? { ...u, status: newStatus === 'inactive' ? 'suspended' : 'active' }
+                    : u),
+                // Clear stored session for any logged-in user of that business if deactivating
+                currentUser: newStatus === 'inactive' && d.currentUser?.businessId === id ? null : d.currentUser
             }));
-            // Fix 6: If deactivating, also suspend all users of that business so their sessions are evicted
-            if (newStatus === 'inactive') {
-                updateStore(d => ({
-                    ...d,
-                    users: d.users.map(u => u.businessId === id && u.role !== 'super-admin' ? { ...u, status: 'suspended' } : u),
-                    currentUser: d.currentUser && d.currentUser.businessId === id ? null : d.currentUser
-                }));
-                addAuditLog('Deactivated business', biz?.name);
-            } else {
-                // Reactivating — restore users to active
-                updateStore(d => ({
-                    ...d,
-                    users: d.users.map(u => u.businessId === id && u.role !== 'super-admin' ? { ...u, status: 'active' } : u)
-                }));
-                addAuditLog('Reactivated business', biz?.name);
-            }
-            renderBusinesses(document.getElementById('content-area'));
+            addAuditLog(newStatus === 'inactive' ? 'Deactivated business' : 'Reactivated business', biz?.name);
+            // Stay on current page — just re-render
+            const area = document.getElementById('content-area');
+            if (activeTab === 'businesses') renderBusinesses(area);
+            else if (activeTab === 'dashboard') renderSuperDashboard(area);
             toast('Business status updated');
         }
 
@@ -2923,7 +2956,7 @@
               <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;gap:8px">
                 <div>
                   <div class="font-bold">${m.businessName} ${!m.read ? '<span class="badge badge-blue">New</span>' : ''}</div>
-                  <div class="text-muted text-sm">${m.email}</div>
+                  <div class="text-muted text-sm">${m.senderName ? sanitize(m.senderName) + (m.senderRole ? ' · ' + m.senderRole : '') + ' · ' : ''}${m.email}</div>
                 </div>
                 <div style="display:flex;align-items:center;gap:8px">
                   <span class="text-muted text-sm">${formatDateShort(m.createdAt)}</span>
@@ -2952,6 +2985,64 @@
         // ============================================================
         // ADMIN DASHBOARD
         // ============================================================
+
+        // Shared helper: compute week data from a transactions array
+        function computeWeekData(txns) {
+            const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            const now = new Date();
+            const todayDow = now.getDay();
+            return days.map((day, i) => {
+                const d = new Date();
+                d.setHours(0, 0, 0, 0);
+                d.setDate(d.getDate() - (todayDow - i));
+                const ds = d.toISOString().split('T')[0];
+                const isFuture = i > todayDow;
+                const isToday = i === todayDow;
+                const dateLabel = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
+                const amount = isFuture ? 0 : txns.filter(t => t.createdAt.startsWith(ds)).reduce((a, t) => a + t.amount, 0);
+                return { day, dateLabel, amount, isFuture, isToday };
+            });
+        }
+
+        function fmtBar(n) {
+            if (n === 0) return '';
+            if (n >= 1000000) return 'R' + (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+            if (n >= 1000) return 'R' + (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+            return 'R' + Math.round(n);
+        }
+
+        // Live-update only the bar chart and stat cards — no full re-render
+        function updateDashboardChart() {
+            if (activeTab !== 'dashboard' || !currentUser || currentUser.role !== 'admin') return;
+            const store = getStore();
+            const bizId = currentUser.businessId;
+            const txns = store.transactions.filter(t => t.businessId === bizId);
+            const now = new Date();
+            const today = now.toISOString().split('T')[0];
+
+            // Update stat cards
+            const todaySales = txns.filter(t => t.createdAt.startsWith(today)).reduce((a, t) => a + t.amount, 0);
+            const monthlySales = txns.filter(t => { const d = new Date(t.createdAt); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); }).reduce((a, t) => a + t.amount, 0);
+            const yearlySales = txns.filter(t => new Date(t.createdAt).getFullYear() === now.getFullYear()).reduce((a, t) => a + t.amount, 0);
+            const el = (id) => document.getElementById(id);
+            if (el('dash-today')) el('dash-today').textContent = formatCurrency(todaySales);
+            if (el('dash-monthly')) el('dash-monthly').textContent = formatCurrency(monthlySales);
+            if (el('dash-yearly')) el('dash-yearly').textContent = formatCurrency(yearlySales);
+            if (el('dash-count')) el('dash-count').textContent = txns.length;
+
+            // Update bars in-place (animate height transitions via CSS)
+            const weekData = computeWeekData(txns);
+            const maxAmount = Math.max(...weekData.map(d => d.amount), 1);
+            weekData.forEach((d, i) => {
+                const barEl = el(`dash-bar-${i}`);
+                const valEl = el(`dash-bar-val-${i}`);
+                if (!barEl || !valEl) return;
+                const newH = d.isFuture ? 2 : Math.max((d.amount / maxAmount) * 120, 2);
+                barEl.style.height = newH + 'px';
+                valEl.textContent = fmtBar(d.amount);
+            });
+        }
+
         function renderAdminDashboard(area) {
             const store = getStore();
             const bizId = currentUser.businessId;
@@ -2961,15 +3052,7 @@
             const todaySales = txns.filter(t => t.createdAt.startsWith(today)).reduce((a, t) => a + t.amount, 0);
             const monthlySales = txns.filter(t => { const d = new Date(t.createdAt); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); }).reduce((a, t) => a + t.amount, 0);
             const yearlySales = txns.filter(t => new Date(t.createdAt).getFullYear() === now.getFullYear()).reduce((a, t) => a + t.amount, 0);
-            const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-            const weekData = days.map((day, i) => {
-                // Fix 3: Use a fresh Date each iteration to avoid cross-month boundary errors
-                const d = new Date();
-                const diff = i - d.getDay();
-                d.setDate(d.getDate() + diff);
-                const ds = d.toISOString().split('T')[0];
-                return { day, amount: txns.filter(t => t.createdAt.startsWith(ds)).reduce((a, t) => a + t.amount, 0) };
-            });
+            const weekData = computeWeekData(txns);
             const maxAmount = Math.max(...weekData.map(d => d.amount), 1);
 
             const st = getSubStatus(bizId);
@@ -2982,16 +3065,21 @@
             area.innerHTML = `
     ${subBanner}
     <div class="stats-grid stats-grid-4 mb-20">
-      <div class="stat-card"><div class="stat-icon">${Icon.credit}</div><div><div class="stat-label">Today's Sales</div><div class="stat-value">${formatCurrency(todaySales)}</div></div></div>
-      <div class="stat-card"><div class="stat-icon">${Icon.dashboard}</div><div><div class="stat-label">Monthly Sales</div><div class="stat-value">${formatCurrency(monthlySales)}</div></div></div>
-      <div class="stat-card"><div class="stat-icon">${Icon.history}</div><div><div class="stat-label">Yearly Sales</div><div class="stat-value">${formatCurrency(yearlySales)}</div></div></div>
-      <div class="stat-card"><div class="stat-icon">${Icon.cart}</div><div><div class="stat-label">Total Transactions</div><div class="stat-value">${txns.length}</div></div></div>
+      <div class="stat-card"><div class="stat-icon">${Icon.credit}</div><div><div class="stat-label">Today's Sales</div><div class="stat-value" id="dash-today">${formatCurrency(todaySales)}</div></div></div>
+      <div class="stat-card"><div class="stat-icon">${Icon.dashboard}</div><div><div class="stat-label">Monthly Sales</div><div class="stat-value" id="dash-monthly">${formatCurrency(monthlySales)}</div></div></div>
+      <div class="stat-card"><div class="stat-icon">${Icon.history}</div><div><div class="stat-label">Yearly Sales</div><div class="stat-value" id="dash-yearly">${formatCurrency(yearlySales)}</div></div></div>
+      <div class="stat-card"><div class="stat-icon">${Icon.cart}</div><div><div class="stat-label">Total Transactions</div><div class="stat-value" id="dash-count">${txns.length}</div></div></div>
     </div>
     <div class="card">
       <div class="card-header"><span class="card-title">Weekly Sales Overview</span></div>
       <div class="card-body">
         <div class="bar-chart">
-          ${weekData.map(d => `<div class="bar-group"><div class="bar-val">${d.amount > 0 ? 'R' + Math.round(d.amount) : ''}</div><div class="bar" style="height:${Math.max((d.amount / maxAmount) * 120, 2)}px"></div><div class="bar-label">${d.day}</div></div>`).join('')}
+          ${weekData.map((d, i) => `
+            <div class="bar-group" style="opacity:${d.isFuture ? 0.25 : 1}">
+              <div class="bar-val" id="dash-bar-val-${i}">${fmtBar(d.amount)}</div>
+              <div class="bar" id="dash-bar-${i}" style="height:${d.isFuture ? 2 : Math.max((d.amount / maxAmount) * 120, 2)}px;background:${d.isToday ? 'var(--black)' : 'var(--gray-300)'}"></div>
+              <div class="bar-label" style="line-height:1.3">${d.day}<br><span style="font-size:8px;color:var(--gray-300)">${d.dateLabel}</span></div>
+            </div>`).join('')}
         </div>
       </div>
     </div>
@@ -3007,8 +3095,6 @@
             const biz = store.businesses.find(b => b.id === currentUser.businessId);
             const plan = biz?.plan || 'starter';
             const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.starter;
-            const isCashier = currentUser.role === 'cashier';
-            const canCRUD = true; // both admin and cashier can CRUD items
 
             area.innerHTML = `
     <div class="page-header">
@@ -3023,22 +3109,14 @@
         <button class="btn btn-primary" onclick="openItemModal(null)">${Icon.plus} Add Item</button>
       </div>
     </div>
-    <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
-      <button class="btn btn-sm btn-outline inv-cat-btn active-cat" data-cat="all" onclick="setInvCategory('all')">All</button>
-      <button class="btn btn-sm btn-outline inv-cat-btn" data-cat="Sweets & Snacks" onclick="setInvCategory('Sweets &amp; Snacks')">Sweets & Snacks</button>
-      <button class="btn btn-sm btn-outline inv-cat-btn" data-cat="Meals" onclick="setInvCategory('Meals')">Meals</button>
-      <button class="btn btn-sm btn-outline inv-cat-btn" data-cat="Drinks" onclick="setInvCategory('Drinks')">Drinks</button>
-      <button class="btn btn-sm btn-outline inv-cat-btn" data-cat="Other" onclick="setInvCategory('Other')">Other</button>
-    </div>
     <div class="card">
       <div class="table-wrapper">
         <table>
-          <thead><tr><th>Item Name</th><th>Category</th><th>Price</th><th>Status</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Item Name</th><th>Price</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody id="inv-table-body">
-            ${items.length === 0 ? `<tr><td colspan="5"><div class="empty-state">No items yet. Add your first item.</div></td></tr>` :
+            ${items.length === 0 ? `<tr><td colspan="4"><div class="empty-state">No items yet. Add your first item.</div></td></tr>` :
                     items.map(item => `<tr>
-                <td><strong>${item.name}</strong></td>
-                <td><span class="badge badge-gray" style="font-size:11px">${item.category || 'Other'}</span></td>
+                <td><strong>${sanitize(item.name)}</strong></td>
                 <td class="text-mono">${formatCurrency(item.price)}</td>
                 <td><span class="badge ${item.status === 'active' ? 'badge-green' : 'badge-red'}">${item.status}</span></td>
                 <td><div class="td-actions">
@@ -3052,41 +3130,25 @@
       </div>
     </div>
   `;
-            // Restore active category if set
-            const activeCat = window._invActiveCat || 'all';
-            document.querySelectorAll('.inv-cat-btn').forEach(b => b.classList.toggle('active-cat', b.dataset.cat === activeCat));
-        }
-
-        let _invActiveCat = 'all';
-        window._invActiveCat = 'all';
-
-        function setInvCategory(cat) {
-            _invActiveCat = cat;
-            window._invActiveCat = cat;
-            document.querySelectorAll('.inv-cat-btn').forEach(b => b.classList.toggle('active-cat', b.dataset.cat === cat));
-            filterInventoryItems();
         }
 
         function filterInventoryItems() {
             const q = (document.getElementById('inv-search')?.value || '').toLowerCase();
             const statusFilter = document.getElementById('inv-status-filter')?.value || 'all';
-            const catFilter = window._invActiveCat || 'all';
             const store = getStore();
             const items = store.items.filter(i => i.businessId === currentUser.businessId);
             const filtered = items.filter(i => {
                 const matchName = i.name.toLowerCase().includes(q);
                 const matchStatus = statusFilter === 'all' || i.status === statusFilter;
-                const matchCat = catFilter === 'all' || (i.category || 'Other') === catFilter;
-                return matchName && matchStatus && matchCat;
+                return matchName && matchStatus;
             });
             const tbody = document.getElementById('inv-table-body');
             if (!tbody) return;
             if (filtered.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state">No items match your search.</div></td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="4"><div class="empty-state">No items match your search.</div></td></tr>`;
             } else {
                 tbody.innerHTML = filtered.map(item => `<tr>
-                <td><strong>${item.name}</strong></td>
-                <td><span class="badge badge-gray" style="font-size:11px">${item.category || 'Other'}</span></td>
+                <td><strong>${sanitize(item.name)}</strong></td>
                 <td class="text-mono">${formatCurrency(item.price)}</td>
                 <td><span class="badge ${item.status === 'active' ? 'badge-green' : 'badge-red'}">${item.status}</span></td>
                 <td><div class="td-actions">
@@ -3098,23 +3160,22 @@
             }
         }
 
+
         function openItemModal(itemId) {
             const store = getStore();
             const item = itemId ? store.items.find(i => i.id === itemId) : null;
-            const cats = ['Sweets & Snacks', 'Meals', 'Drinks', 'Other'];
-            const catOptions = cats.map(c => `<option value="${c}" ${(item?.category || 'Other') === c ? 'selected' : ''}>${c}</option>`).join('');
             openModal(item ? 'Edit Item' : 'Add New Item', `
     <div class="form-group"><label class="form-label">Item Name</label><input id="m-item-name" class="form-input" value="${item ? sanitize(item.name) : ''}" placeholder="e.g. Coca Cola 500ml"/></div>
-    <div class="form-group"><label class="form-label">Category</label><select id="m-item-cat" class="form-select">${catOptions}</select></div>
     <div class="form-group"><label class="form-label">Price (R)</label><input id="m-item-price" class="form-input" type="number" min="0" step="0.01" value="${item ? item.price : ''}" placeholder="0.00"/></div>
-    <button class="btn btn-primary btn-full btn-lg" onclick="saveItem('${itemId || ''}')">${item ? 'Update Item' : 'Add Item'}</button>
+    <button class="btn btn-primary btn-full btn-lg" onclick="saveItem('${safeAttr(itemId || '')}')">${item ? 'Update Item' : 'Add Item'}</button>
   `);
         }
+
+        function toggleStockField(cat) { /* category removed */ }
 
         function saveItem(itemId) {
             const name = document.getElementById('m-item-name').value.trim();
             const price = parseFloat(document.getElementById('m-item-price').value);
-            const category = document.getElementById('m-item-cat')?.value || 'Other';
             if (!name || isNaN(price) || price < 0) { toast('Please fill in all fields correctly', 'error'); return; }
 
             const store = getStore();
@@ -3122,7 +3183,7 @@
             const limits = PLAN_LIMITS[biz?.plan] || PLAN_LIMITS.starter;
 
             if (itemId) {
-                updateStore(d => ({ ...d, items: d.items.map(i => i.id === itemId ? { ...i, name: sanitize(name), price, category } : i) }));
+                updateStore(d => ({ ...d, items: d.items.map(i => i.id === itemId ? { ...i, name: sanitize(name), price } : i) }));
                 addAuditLog('Updated item', name);
                 toast('Item updated', 'success');
             } else {
@@ -3131,14 +3192,13 @@
                     toast(`${biz?.plan} plan limit: ${limits.items} items. Upgrade to add more.`, 'error'); return;
                 }
                 updateStore(d => ({
-                    ...d, items: [...d.items, { id: `item-${uid()}`, businessId: currentUser.businessId, name: sanitize(name), price, category, status: 'active' }]
+                    ...d, items: [...d.items, { id: `item-${uid()}`, businessId: currentUser.businessId, name: sanitize(name), price, status: 'active' }]
                 }));
                 addAuditLog('Added item', name);
                 toast('Item added', 'success');
             }
             closeModal();
             renderItems(document.getElementById('content-area'));
-            // Refresh POS item cache
             refreshPOSItemCache();
         }
 
@@ -3188,7 +3248,9 @@
             area.innerHTML = `
     <div class="page-header">
       <h2 class="page-title">Cashiers <span style="font-size:13px;color:var(--gray-400);font-weight:400">${cashiers.length}${limits.cashiers !== Infinity ? ' / ' + limits.cashiers : ''}</span></h2>
-      <button class="btn btn-primary" onclick="openCashierModal(null)">${Icon.plus} Add Cashier</button>
+      ${limits.cashiers !== Infinity && cashiers.length >= limits.cashiers
+                    ? `<button class="btn btn-primary" disabled title="Cashier limit reached for your plan. Upgrade to add more." style="opacity:.5;cursor:not-allowed">${Icon.plus} Add Cashier <span style="font-size:10px;margin-left:4px;opacity:.8">(limit reached)</span></button>`
+                    : `<button class="btn btn-primary" onclick="openCashierModal(null)">${Icon.plus} Add Cashier</button>`}
     </div>
     <div class="card">
       <div class="table-wrapper">
@@ -3411,25 +3473,46 @@
             const logs = store.auditLogs.filter(l => l.businessId === currentUser.businessId);
 
             area.innerHTML = `
-    <div class="page-header"><h2 class="page-title">Audit Logs</h2></div>
+    <div class="page-header">
+      <h2 class="page-title">Audit Logs</h2>
+      <div class="search-box"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--gray-400)"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="audit-search" type="text" placeholder="Search logs..." style="padding-left:30px;height:34px" oninput="filterAuditLogs()" /></div>
+    </div>
     <div class="card">
       <div class="table-wrapper">
         <table>
           <thead><tr><th>Date & Time</th><th>User</th><th>Role</th><th>Action</th><th>Target</th></tr></thead>
-          <tbody>
-            ${logs.length === 0 ? `<tr><td colspan="5"><div class="empty-state">No audit logs yet.</div></td></tr>` :
-                    [...logs].reverse().map(l => `<tr>
-                <td class="text-muted">${formatDate(l.ts)}</td>
-                <td><strong>${l.userName}</strong></td>
-                <td><span class="badge badge-gray">${l.role}</span></td>
-                <td>${l.action}</td>
-                <td class="text-muted">${l.target || '—'}</td>
-              </tr>`).join('')}
+          <tbody id="audit-tbody">
+            ${renderAuditRows(logs)}
           </tbody>
         </table>
       </div>
     </div>
   `;
+        }
+
+        function renderAuditRows(logs) {
+            if (logs.length === 0) return `<tr><td colspan="5"><div class="empty-state">No audit logs found.</div></td></tr>`;
+            return [...logs].reverse().map(l => `<tr>
+                <td class="text-muted">${formatDate(l.ts)}</td>
+                <td><strong>${sanitize(l.userName)}</strong></td>
+                <td><span class="badge badge-gray">${l.role}</span></td>
+                <td>${sanitize(l.action)}</td>
+                <td class="text-muted">${sanitize(l.target || '—')}</td>
+              </tr>`).join('');
+        }
+
+        function filterAuditLogs() {
+            const q = (document.getElementById('audit-search')?.value || '').toLowerCase();
+            const store = getStore();
+            const logs = store.auditLogs.filter(l => l.businessId === currentUser.businessId);
+            const filtered = q ? logs.filter(l =>
+                (l.userName || '').toLowerCase().includes(q) ||
+                (l.action || '').toLowerCase().includes(q) ||
+                (l.target || '').toLowerCase().includes(q) ||
+                (l.role || '').toLowerCase().includes(q)
+            ) : logs;
+            const tbody = document.getElementById('audit-tbody');
+            if (tbody) tbody.innerHTML = renderAuditRows(filtered);
         }
 
         // ============================================================
@@ -3453,12 +3536,7 @@
             refreshPOSItemCache();
             const searchInput = document.getElementById('pos-search-input');
             const q = searchInput ? searchInput.value.toLowerCase() : '';
-            const cat = window._posActiveCat || 'all';
-            const filtered = _posItems.filter(i => {
-                const matchName = i.name.toLowerCase().includes(q);
-                const matchCat = cat === 'all' || (i.category || 'Other') === cat;
-                return matchName && matchCat;
-            });
+            const filtered = _posItems.filter(i => i.name.toLowerCase().includes(q));
             const grid = document.getElementById('pos-items-grid');
             if (grid) grid.innerHTML = renderPOSItemsHTML(filtered);
         }
@@ -3470,12 +3548,6 @@
     <div class="pos-layout">
       <div class="pos-items-panel">
         <div class="pos-search">${Icon.search}<input id="pos-search-input" type="text" placeholder="Search items..." oninput="filterPOSItems()"/></div>
-        <div style="display:flex;gap:6px;padding:0 0 10px 0;flex-wrap:wrap">
-          <button class="btn btn-sm btn-outline pos-cat-btn active-cat" data-cat="all" onclick="setPOSCategory('all')">All</button>
-          <button class="btn btn-sm btn-outline pos-cat-btn" data-cat="Sweets & Snacks" onclick="setPOSCategory('Sweets &amp; Snacks')">Sweets & Snacks</button>
-          <button class="btn btn-sm btn-outline pos-cat-btn" data-cat="Meals" onclick="setPOSCategory('Meals')">Meals</button>
-          <button class="btn btn-sm btn-outline pos-cat-btn" data-cat="Drinks" onclick="setPOSCategory('Drinks')">Drinks</button>
-        </div>
         <div class="pos-items-grid" id="pos-items-grid">${renderPOSItemsHTML(_posItems)}</div>
       </div>
       <div class="pos-cart">
@@ -3515,41 +3587,37 @@
                         <div style="font-size:12px;color:var(--gray-400)">You need to add items before you can use the POS. ${guideLink}</div>
                     </div>`;
                 }
-                return '<div class="empty-state" style="grid-column:1/-1">No items match your search.</div>';
+                const hasSearch = (document.getElementById('pos-search-input')?.value || '').trim().length > 0;
+                let hint = '';
+                if (hasSearch) hint = `<br><button class="btn btn-sm btn-outline" style="margin-top:10px" onclick="document.getElementById('pos-search-input').value='';filterPOSItems()">Clear search</button>`;
+                return `<div class="empty-state" style="grid-column:1/-1">No items match your search.${hint}</div>`;
             }
             return items.map(item => `
-    <button class="pos-item-btn" onclick="addToCart('${item.id}','${sanitize(item.name).replace(/'/g, "\\'")}',${item.price})">
+    <button class="pos-item-btn" data-id="${safeAttr(item.id)}" data-price="${item.price}" onclick="addToCartById(this)">
       <div class="pos-item-name">${sanitize(item.name)}</div>
       <div class="pos-item-price">${formatCurrency(item.price)}</div>
     </button>
   `).join('');
         }
 
-        function setPOSCategory(cat) {
-            window._posActiveCat = cat;
-            document.querySelectorAll('.pos-cat-btn').forEach(b => b.classList.toggle('active-cat', b.dataset.cat === cat));
-            filterPOSItems();
-        }
-
         function filterPOSItems() {
             const q = document.getElementById('pos-search-input').value.toLowerCase();
-            const cat = window._posActiveCat || 'all';
-            const filtered = _posItems.filter(i => {
-                const matchName = i.name.toLowerCase().includes(q);
-                const matchCat = cat === 'all' || (i.category || 'Other') === cat;
-                return matchName && matchCat;
-            });
+            const filtered = _posItems.filter(i => i.name.toLowerCase().includes(q));
             document.getElementById('pos-items-grid').innerHTML = renderPOSItemsHTML(filtered);
         }
 
-        function addToCart(id, name, price) {
-            // Always use fresh price from store
+        function addToCartById(btn) {
+            const id = btn.dataset.id;
+            addToCart(id);
+        }
+
+        function addToCart(id) {
+            // Always use fresh price/name from store cache
             const freshItem = _posItems.find(i => i.id === id);
-            const freshPrice = freshItem ? freshItem.price : price;
-            const freshName = freshItem ? freshItem.name : name;
+            if (!freshItem) return;
             const existing = posCart.find(c => c.id === id);
-            if (existing) { existing.quantity++; existing.price = freshPrice; existing.name = freshName; }
-            else { posCart.push({ id, name: freshName, price: freshPrice, quantity: 1 }); }
+            if (existing) { existing.quantity++; existing.price = freshItem.price; existing.name = freshItem.name; }
+            else { posCart.push({ id, name: freshItem.name, price: freshItem.price, quantity: 1 }); }
             updateCartUI();
         }
 
@@ -3583,16 +3651,10 @@
             if (totalEl) totalEl.textContent = fmt;
             const cartTotal = posCart.reduce((a, c) => a + c.price * c.quantity, 0);
             if (checkoutBtn) {
-                // Fix 8: Disable checkout if cart is empty OR total is R0.00, and show feedback
-                const isZero = cartTotal === 0 && posCart.length > 0;
-                checkoutBtn.disabled = posCart.length === 0 || isZero;
-                if (isZero) {
-                    checkoutBtn.textContent = 'Total is R0.00 — add items with a price';
-                    checkoutBtn.style.opacity = '0.5';
-                } else {
-                    checkoutBtn.textContent = posCart.length === 0 ? 'Complete Transaction' : `Complete Transaction`;
-                    checkoutBtn.style.opacity = '';
-                }
+                // Only disable when cart is truly empty; R0.00 totals are valid (free/promotional items)
+                checkoutBtn.disabled = posCart.length === 0;
+                checkoutBtn.textContent = 'Complete Transaction';
+                checkoutBtn.style.opacity = posCart.length === 0 ? '0.5' : '';
             }
         }
 
@@ -3613,59 +3675,94 @@
 
         function handlePOSCheckout() {
             if (posCart.length === 0) return;
-            const total = posCart.reduce((a, c) => a + c.price * c.quantity, 0);
-            const itemsSummary = posCart.map(c => `${sanitize(c.name)} ×${c.quantity}`).join(', ');
-            if (posPayMethod === 'card') {
-                openModal('Confirm Card Payment', `
-      <div style="text-align:center;padding:16px 0">
-        <div style="font-size:32px;font-weight:900;font-family:var(--font-mono);margin-bottom:8px">${formatCurrency(total)}</div>
-        <div style="font-size:13px;color:var(--gray-500);margin-bottom:4px">Present card to terminal to complete payment</div>
+            const subtotal = posCart.reduce((a, c) => a + c.price * c.quantity, 0);
+            const typeLabel = posPayMethod === 'card' ? 'Card' : 'Cash';
+            openModal(`Confirm ${typeLabel} Payment`, `
+      <div style="padding:8px 0">
+        <div style="background:var(--gray-50);border:1px solid var(--gray-100);border-radius:var(--radius);padding:12px;margin-bottom:14px;font-size:13px">
+          ${posCart.map(c => `<div style="display:flex;justify-content:space-between;padding:2px 0"><span>${sanitize(c.name)} ×${c.quantity}</span><span class="text-mono">${formatCurrency(c.price * c.quantity)}</span></div>`).join('')}
+          <div style="display:flex;justify-content:space-between;padding-top:8px;border-top:1px solid var(--gray-200);font-weight:700"><span>Subtotal</span><span class="text-mono" id="modal-subtotal">${formatCurrency(subtotal)}</span></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+          <label style="font-size:12px;color:var(--gray-500);white-space:nowrap;font-family:var(--font-mono);font-weight:600;text-transform:uppercase;letter-spacing:.06em">Discount</label>
+          <input id="discount-val" type="number" min="0" class="form-input" style="height:34px;width:90px" placeholder="0" oninput="updateDiscountPreview(${subtotal})"/>
+          <select id="discount-type" class="form-select" style="height:34px;width:70px" onchange="updateDiscountPreview(${subtotal})">
+            <option value="flat">R</option>
+            <option value="pct">%</option>
+          </select>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:20px;font-weight:900;font-family:var(--font-mono);margin-bottom:16px;padding:10px 0;border-top:2px solid var(--black)">
+          <span>Total</span><span id="modal-total">${formatCurrency(subtotal)}</span>
+        </div>
+        ${posPayMethod === 'card' ? `<div style="font-size:13px;color:var(--gray-500);text-align:center;margin-bottom:12px">Present card to terminal to complete payment</div>` : ''}
         <div style="display:flex;gap:10px;">
           <button class="btn btn-outline btn-lg" style="flex:1" onclick="closeModal()">Cancel</button>
-          <button class="btn btn-primary btn-lg" style="flex:2" onclick="closeModal();recordTransaction(${total},'card')">
-            ${Icon.checkCircle} Confirm Payment
+          <button class="btn btn-primary btn-lg" style="flex:2" onclick="confirmPOSPayment('${posPayMethod}',${subtotal})">
+            ${Icon.checkCircle} Confirm ${typeLabel}
           </button>
         </div>
       </div>
     `);
-            } else {
-                openModal('Confirm Cash Payment', `
-      <div style="text-align:center;padding:16px 0">
-        <div style="font-size:32px;font-weight:900;font-family:var(--font-mono);margin-bottom:8px">${formatCurrency(total)}</div>
-        <div style="font-size:13px;color:var(--gray-500);margin-bottom:4px">Confirm cash received from customer</div>
-        <div style="display:flex;gap:10px;">
-          <button class="btn btn-outline btn-lg" style="flex:1" onclick="closeModal()">Cancel</button>
-          <button class="btn btn-primary btn-lg" style="flex:2" onclick="closeModal();recordTransaction(${total},'cash')">
-            ${Icon.checkCircle} Confirm Cash
-          </button>
-        </div>
-      </div>
-    `);
-            }
         }
 
-        function recordTransaction(total, type) {
-            // Fix 17: Compute and store itemsSummary in the transaction record
+        function updateDiscountPreview(subtotal) {
+            const val = parseFloat(document.getElementById('discount-val')?.value) || 0;
+            const type = document.getElementById('discount-type')?.value || 'flat';
+            const discount = type === 'pct' ? subtotal * (Math.min(val, 100) / 100) : Math.min(val, subtotal);
+            const finalTotal = Math.max(0, subtotal - discount);
+            const el = document.getElementById('modal-total');
+            if (el) el.textContent = formatCurrency(finalTotal);
+        }
+
+        function confirmPOSPayment(type, subtotal) {
+            const val = parseFloat(document.getElementById('discount-val')?.value) || 0;
+            const dtype = document.getElementById('discount-type')?.value || 'flat';
+            const discount = dtype === 'pct' ? subtotal * (Math.min(val, 100) / 100) : Math.min(val, subtotal);
+            const finalTotal = Math.max(0, subtotal - discount);
+            closeModal();
+            recordTransaction(finalTotal, type, discount > 0 ? discount : null);
+        }
+
+        function recordTransaction(total, type, discount) {
             const itemsSummary = posCart.map(c => `${sanitize(c.name)} ×${c.quantity}`).join(', ');
+            const receiptId = `TXN-${Date.now().toString(36).toUpperCase()}`;
+            const cartSnapshot = [...posCart];
             const txn = {
                 id: `trx-${uid()}`,
+                receiptId,
                 businessId: currentUser.businessId,
                 cashierId: currentUser.id,
                 cashierName: currentUser.name,
                 amount: total,
+                discount: discount || 0,
                 type,
                 itemsSummary,
                 createdAt: new Date().toISOString(),
             };
             updateStore(d => ({ ...d, transactions: [...d.transactions, txn] }));
             addAuditLog(`Processed ${type} transaction`, formatCurrency(total));
+            // Live-update the dashboard chart if admin is viewing it in the same tab
+            updateDashboardChart();
             posCart = [];
-            // Clear search
             const searchInput = document.getElementById('pos-search-input');
             if (searchInput) searchInput.value = '';
             updateCartUI();
             filterPOSItems();
-            toast(`${type === 'card' ? 'Card' : 'Cash'} payment of ${formatCurrency(total)} recorded!`, 'success');
+            // Show receipt modal
+            openModal('Receipt', `
+  <div style="text-align:center;padding:8px 0 16px">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--gray-400);font-family:var(--font-mono);margin-bottom:4px">Receipt</div>
+    <div style="font-size:13px;font-family:var(--font-mono);color:var(--gray-500);margin-bottom:16px">${receiptId}</div>
+    <div style="background:var(--gray-50);border:1px solid var(--gray-100);border-radius:var(--radius);padding:14px;text-align:left;margin-bottom:16px;font-size:13px">
+      ${cartSnapshot.map(c => `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--gray-100)"><span>${sanitize(c.name)} ×${c.quantity}</span><span class="text-mono">${formatCurrency(c.price * c.quantity)}</span></div>`).join('')}
+      ${discount ? `<div style="display:flex;justify-content:space-between;padding:3px 0;color:var(--green)"><span>Discount</span><span class="text-mono">−${formatCurrency(discount)}</span></div>` : ''}
+      <div style="display:flex;justify-content:space-between;padding-top:8px;font-weight:700"><span>Total</span><span class="text-mono">${formatCurrency(total)}</span></div>
+    </div>
+    <div style="font-size:12px;color:var(--gray-500);margin-bottom:4px">Payment: <strong>${type === 'cash' ? 'Cash' : 'Card'}</strong></div>
+    <div style="font-size:12px;color:var(--gray-400);margin-bottom:20px">Served by: ${sanitize(currentUser.name)}</div>
+    <button class="btn btn-primary btn-full btn-lg" onclick="closeModal()">${Icon.checkCircle} Done</button>
+  </div>
+`);
         }
 
         // ============================================================
@@ -3703,12 +3800,13 @@
     <div class="card">
       <div class="table-wrapper">
         <table>
-          <thead><tr><th>Date & Time</th><th>Cashier</th><th>Amount</th><th>Type</th></tr></thead>
+          <thead><tr><th>Date & Time</th><th>Receipt</th><th>Cashier</th><th>Amount</th><th>Type</th></tr></thead>
           <tbody>
             ${filtered.length === 0
-                    ? `<tr><td colspan="4"><div class="empty-state">No transactions for ${periodLabels[txnFilterPeriod].toLowerCase()}</div></td></tr>`
+                    ? `<tr><td colspan="5"><div class="empty-state">No transactions for ${periodLabels[txnFilterPeriod].toLowerCase()}</div></td></tr>`
                     : [...filtered].reverse().map(t => `<tr>
                 <td class="text-muted">${formatDate(t.createdAt)}</td>
+                <td><span class="text-mono" style="font-size:11px;color:var(--gray-500)">${t.receiptId || '—'}</span></td>
                 <td>${sanitize(t.cashierName || '—')}</td>
                 <td><strong class="text-mono">${formatCurrency(t.amount)}</strong></td>
                 <td><span class="badge ${t.type === 'cash' ? 'badge-green' : 'badge-blue'}">${t.type}</span></td>
@@ -3800,19 +3898,25 @@
             const store = getStore();
             const today = new Date().toISOString().split('T')[0];
             const txns = store.transactions.filter(t => t.businessId === currentUser.businessId && t.cashierId === currentUser.id && t.createdAt.startsWith(today));
+            const dayTotal = txns.reduce((a, t) => a + t.amount, 0);
 
             area.innerHTML = `
     <div class="page-header">
       <h2 class="page-title">My Orders</h2>
     </div>
+    <div class="stats-grid stats-grid-2 mb-20">
+      <div class="stat-card"><div class="stat-icon">${Icon.cart}</div><div><div class="stat-label">Orders Today</div><div class="stat-value">${txns.length}</div></div></div>
+      <div class="stat-card"><div class="stat-icon">${Icon.credit}</div><div><div class="stat-label">Today's Total</div><div class="stat-value">${formatCurrency(dayTotal)}</div></div></div>
+    </div>
     <div class="card">
       <div class="table-wrapper">
         <table>
-          <thead><tr><th>Time</th><th>Amount</th><th>Items</th><th>Type</th></tr></thead>
+          <thead><tr><th>Time</th><th>Receipt</th><th>Amount</th><th>Items</th><th>Type</th></tr></thead>
           <tbody>
-            ${txns.length === 0 ? `<tr><td colspan="4"><div class="empty-state">No orders today.</div></td></tr>` :
-                    txns.map(t => `<tr>
+            ${txns.length === 0 ? `<tr><td colspan="5"><div class="empty-state">No orders today.</div></td></tr>` :
+                    [...txns].reverse().map(t => `<tr>
                 <td class="text-muted">${formatDate(t.createdAt)}</td>
+                <td><span class="text-mono" style="font-size:11px;color:var(--gray-500)">${t.receiptId || '—'}</span></td>
                 <td><strong class="text-mono">${formatCurrency(t.amount)}</strong></td>
                 <td class="text-muted text-sm">${t.itemsSummary || '—'}</td>
                 <td><span class="badge ${t.type === 'cash' ? 'badge-green' : 'badge-blue'}">${t.type}</span></td>
@@ -3879,6 +3983,7 @@
           ${biz.plan === 'trial' ? `<button class="btn btn-primary" onclick="handleUpgrade('starter')">Upgrade to Starter</button>` : ''}
           ${biz.plan === 'starter' && !nextPlan && sub.status !== 'cancelled' ? `<button class="btn btn-primary" onclick="handleUpgrade('premium')">Upgrade to Premium</button>` : ''}
           ${biz.plan === 'trial' ? `<button class="btn btn-outline" onclick="handleUpgrade('premium')">Upgrade to Premium</button>` : ''}
+          ${biz.plan !== 'trial' && st?.active && sub.status !== 'cancelled' ? `<button class="btn btn-outline" onclick="handleRenew()" title="Add another month to your current plan now">Extend Early</button>` : ''}
           ${biz.plan !== 'trial' && st?.active && sub.status !== 'cancelled' ? `<button class="btn btn-danger-outline" onclick="handleCancelSub()">Cancel Subscription</button>` : ''}
           ${st?.status === 'cancelled-expired' || st?.status === 'expired' ? `<button class="btn btn-primary" onclick="handleRenew()">Renew Subscription</button>` : ''}
           ${sub.status === 'cancelled' && st?.active ? `<button class="btn btn-primary" onclick="handleRenew()">Renew Subscription</button>` : ''}
@@ -3923,13 +4028,14 @@
         }
 
         function completeRenew(newPlan) {
-            // Renewal: add new plan's duration on top of any remaining time (except trial — trial remainder is not carried over)
+            // Renewal: add new plan's duration on top of any remaining time,
+            // EXCEPT when coming from a trial — trial time is not carried over
             const store = getStore();
             const existingSub = store.subscriptions.find(s => s.businessId === currentUser.businessId);
             const biz = store.businesses.find(b => b.id === currentUser.businessId);
+            const isTrial = biz?.plan === 'trial';
             const dur = PLAN_LIMITS[newPlan]?.durationDays || 30;
             let newExpiry;
-            const isTrial = biz?.plan === 'trial';
             if (!isTrial && existingSub && existingSub.expiresAt) {
                 const remaining = new Date(existingSub.expiresAt) - new Date();
                 newExpiry = new Date(Date.now() + dur * 86400000 + Math.max(0, remaining)).toISOString();
@@ -4010,15 +4116,18 @@
         // CONTACT
         // ============================================================
         function renderContact(area) {
-            const biz = getStore().businesses.find(b => b.id === currentUser.businessId);
+            const store = getStore();
+            const biz = store.businesses.find(b => b.id === currentUser.businessId);
+            const senderName = sanitize(currentUser.name);
             area.innerHTML = `
     <div class="page-header"><h2 class="page-title">Contact Support</h2></div>
     <div class="card" style="max-width:500px">
       <div class="card-body">
-        <div class="form-group"><label class="form-label">Business Name</label><input class="form-input" value="${sanitize(biz?.name || '')}" disabled/></div>
-        <div class="form-group"><label class="form-label">Email Address</label><input class="form-input" value="${biz?.email || ''}" disabled/></div>
+        <div class="form-group"><label class="form-label">Business Name</label><input class="form-input" value="${sanitize(biz?.name || 'N/A')}" disabled/></div>
+        <div class="form-group"><label class="form-label">Your Name</label><input class="form-input" value="${senderName}" disabled/></div>
+        <div class="form-group"><label class="form-label">Email Address</label><input class="form-input" value="${currentUser.email || ''}" disabled/></div>
         <div class="form-group"><label class="form-label">Message</label><textarea id="support-msg" class="form-textarea" placeholder="How can we help you?"></textarea></div>
-        <button class="btn btn-primary btn-full btn-lg" onclick="sendSupportMessage('${biz?.id}','${sanitize(biz?.name || '')}','${biz?.email || ''}')">
+        <button class="btn btn-primary btn-full btn-lg" onclick="sendSupportMessage()">
           ${Icon.mail} Send Message
         </button>
       </div>
@@ -4026,12 +4135,24 @@
   `;
         }
 
-        function sendSupportMessage(bizId, bizName, bizEmail) {
+        function sendSupportMessage() {
             const msg = document.getElementById('support-msg').value.trim();
             if (!msg) { toast('Please enter a message', 'error'); return; }
+            const store = getStore();
+            const biz = store.businesses.find(b => b.id === currentUser.businessId);
             updateStore(d => ({
                 ...d,
-                messages: [...d.messages, { id: `msg-${uid()}`, businessId: bizId, businessName: bizName, email: bizEmail, message: sanitize(msg), createdAt: new Date().toISOString(), read: false }]
+                messages: [...d.messages, {
+                    id: `msg-${uid()}`,
+                    businessId: currentUser.businessId || 'direct',
+                    businessName: biz?.name || currentUser.name,
+                    senderName: currentUser.name,
+                    senderRole: currentUser.role,
+                    email: currentUser.email,
+                    message: sanitize(msg),
+                    createdAt: new Date().toISOString(),
+                    read: false
+                }]
             }));
             document.getElementById('support-msg').value = '';
             toast('Message sent to support!', 'success');
@@ -4084,7 +4205,7 @@
         }
 
         function deleteAccount() {
-            confirm2('Delete Account', 'Delete your account and all associated data? This cannot be undone.').then(ok => {
+            confirm2('Delete Account', 'This will permanently delete your business, all cashier accounts, inventory, transactions and subscription data. This cannot be undone.').then(ok => {
                 if (!ok) return;
                 const bizId = currentUser.businessId;
                 updateStore(d => ({

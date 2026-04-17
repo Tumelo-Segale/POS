@@ -27,16 +27,21 @@
             --gray-300: #b5b5b5;
             --gray-400: #8a8a8a;
             --gray-500: #6a6a6a;
+            --gray-600: #484848;
+            --gray-800: #1f1f1f;
             --gray-900: #141414;
             --green: #1a7a4a;
             --blue: #1444a4;
+            --blue-bg: #e8eefa;
             --accent: #d4a017;
-            --radius: 4px;
+            --red: #c1121f;
+            --radius: 2px;
             --font-main: 'IBM Plex Sans', sans-serif;
             --font-mono: 'IBM Plex Mono', monospace;
             --shadow-sm: 0 1px 3px rgba(0, 0, 0, .08);
             --shadow-md: 0 4px 16px rgba(0, 0, 0, .08);
             --shadow-lg: 0 12px 32px rgba(0, 0, 0, .12);
+            --sidebar-width: 240px;
         }
 
         body {
@@ -55,7 +60,6 @@
             padding: 0 24px;
         }
 
-        /* TYPOGRAPHY */
         h1,
         h2,
         h3 {
@@ -97,14 +101,13 @@
         }
 
         .btn-primary:hover {
-            background: var(--gray-400);
-            color: var(--black);
+            background: var(--gray-800);
         }
 
         .btn-outline {
             background: transparent;
             color: var(--black);
-            border: 2px solid var(--gray-200);
+            border: 1px solid var(--gray-200);
         }
 
         .btn-outline:hover {
@@ -122,17 +125,17 @@
             width: 100%;
         }
 
-        /* NAVBAR */
+        /* ── NAVBAR ── */
         header {
             position: fixed;
             top: 0;
             left: 0;
             right: 0;
-            height: 72px;
-            background: rgba(250, 250, 250, 0.9);
+            height: 56px;
+            background: rgba(250, 250, 250, .95);
             backdrop-filter: blur(8px);
             border-bottom: 1px solid var(--gray-100);
-            z-index: 100;
+            z-index: 300;
             display: flex;
             align-items: center;
         }
@@ -150,7 +153,7 @@
             gap: 10px;
             font-family: var(--font-mono);
             font-weight: 700;
-            font-size: 18px;
+            font-size: 16px;
             text-decoration: none;
             color: var(--black);
         }
@@ -159,55 +162,209 @@
             width: 32px;
             height: 32px;
             background: var(--black);
-            border-radius: 4px;
+            border-radius: var(--radius);
             display: flex;
             align-items: center;
             justify-content: center;
         }
 
+        /* Desktop nav links */
         .nav-links {
             display: flex;
-            gap: 24px;
+            gap: 20px;
             align-items: center;
         }
 
-        .nav-links a {
+        .nav-links a.nav-link {
             color: var(--gray-500);
             text-decoration: none;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 500;
             transition: color 0.2s;
         }
 
-        .nav-links a:hover {
+        .nav-links a.nav-link:hover {
+            color: var(--black);
+        }
+
+        /* Hamburger button — always visible on mobile */
+        .hamburger-btn {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            background: none;
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius);
+            cursor: pointer;
+            color: var(--gray-600);
+            transition: all .15s;
+        }
+
+        .hamburger-btn:hover {
+            background: var(--gray-100);
             color: var(--black);
         }
 
         @media (max-width: 768px) {
+            .hamburger-btn {
+                display: flex;
+            }
+
             .nav-links .hide-mobile {
                 display: none;
             }
         }
 
-        /* HERO SECTION */
+        /* ── MOBILE SIDEBAR ── */
+        #sidebar-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, .5);
+            z-index: 399;
+        }
+
+        #sidebar-overlay.open {
+            display: block;
+        }
+
+        #mobile-sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            width: var(--sidebar-width);
+            background: var(--black);
+            color: var(--white);
+            z-index: 400;
+            display: flex;
+            flex-direction: column;
+            transform: translateX(-100%);
+            transition: transform .25s ease;
+        }
+
+        #mobile-sidebar.open {
+            transform: translateX(0);
+        }
+
+        .sidebar-logo {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, .07);
+        }
+
+        .sidebar-logo-inner {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .sidebar-logo-icon {
+            width: 32px;
+            height: 32px;
+            background: var(--white);
+            border-radius: var(--radius);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .sidebar-logo-text {
+            font-family: var(--font-mono);
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--white);
+        }
+
+        .sidebar-close-btn {
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, .5);
+            cursor: pointer;
+            padding: 4px;
+            border-radius: var(--radius);
+            display: flex;
+        }
+
+        .sidebar-close-btn:hover {
+            color: var(--white);
+            background: rgba(255, 255, 255, .1);
+        }
+
+        .sidebar-nav {
+            flex: 1;
+            padding: 12px 8px;
+            overflow-y: auto;
+        }
+
+        .nav-section-label {
+            font-size: 9px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .12em;
+            color: rgba(255, 255, 255, .25);
+            font-family: var(--font-mono);
+            padding: 12px 10px 4px;
+        }
+
+        .sidebar-nav-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 10px;
+            border-radius: var(--radius);
+            cursor: pointer;
+            color: rgba(255, 255, 255, .55);
+            transition: all .15s;
+            margin-bottom: 2px;
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .sidebar-nav-item:hover {
+            background: rgba(255, 255, 255, .07);
+            color: rgba(255, 255, 255, .9);
+        }
+
+        .sidebar-nav-item svg {
+            min-width: 18px;
+        }
+
+        .sidebar-footer {
+            padding: 16px;
+            border-top: 1px solid rgba(255, 255, 255, .07);
+        }
+
+        .sidebar-footer .btn {
+            width: 100%;
+            justify-content: center;
+        }
+
+        /* ── HERO ── */
         .hero {
-            padding: 160px 0 80px;
+            padding: 120px 0 80px;
             text-align: center;
-            background: linear-gradient(180deg, var(--gray-50) 0%, var(--white) 100%);
+            background: var(--gray-50);
             background-image: linear-gradient(rgba(0, 0, 0, .03) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 0, 0, .03) 1px, transparent 1px);
             background-size: 32px 32px;
         }
 
         .hero h1 {
-            font-size: clamp(36px, 5vw, 56px);
+            font-size: clamp(32px, 5vw, 54px);
             margin-bottom: 20px;
             letter-spacing: -1px;
         }
 
         .hero p {
-            font-size: 18px;
+            font-size: 17px;
             color: var(--gray-500);
-            max-width: 600px;
+            max-width: 580px;
             margin: 0 auto 32px;
         }
 
@@ -215,19 +372,20 @@
             display: flex;
             justify-content: center;
             gap: 12px;
+            flex-wrap: wrap;
         }
 
+        /* DASHBOARD MOCKUP in hero */
         .hero-mockup {
-            margin-top: 60px;
-            max-width: 1000px;
+            margin-top: 56px;
+            max-width: 960px;
             margin-left: auto;
             margin-right: auto;
-            border-radius: 4px;
+            border-radius: var(--radius);
             border: 1px solid var(--gray-200);
             box-shadow: var(--shadow-lg);
             background: var(--white);
             overflow: hidden;
-            position: relative;
         }
 
         .mockup-header {
@@ -247,17 +405,171 @@
             background: var(--gray-300);
         }
 
-        .hero-mockup img {
-            width: 100%;
-            display: block;
-            object-fit: cover;
+        /* Inline dashboard preview */
+        .mockup-body {
+            display: flex;
+            height: 340px;
+            overflow: hidden;
             background: var(--gray-50);
+            font-size: 12px;
         }
 
-        /* PLATFORM OVERVIEW */
+        .mockup-sidebar {
+            width: 160px;
+            min-width: 160px;
+            background: var(--black);
+            display: flex;
+            flex-direction: column;
+            padding: 12px 8px;
+        }
+
+        .mock-sidebar-logo {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 8px 14px;
+            border-bottom: 1px solid rgba(255, 255, 255, .08);
+            margin-bottom: 10px;
+        }
+
+        .mock-sidebar-logo-icon {
+            width: 20px;
+            height: 20px;
+            background: var(--white);
+            border-radius: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .mock-sidebar-logo-text {
+            font-family: var(--font-mono);
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--white);
+        }
+
+        .mock-nav-item {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            padding: 7px 8px;
+            border-radius: 2px;
+            color: rgba(255, 255, 255, .4);
+            font-size: 11px;
+            margin-bottom: 2px;
+        }
+
+        .mock-nav-item.active {
+            background: var(--white);
+            color: var(--black);
+            font-weight: 600;
+        }
+
+        .mock-nav-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: currentColor;
+            flex-shrink: 0;
+        }
+
+        .mockup-content {
+            flex: 1;
+            padding: 16px;
+            overflow: hidden;
+        }
+
+        .mock-stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        @media (max-width: 600px) {
+            .mock-stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        .mock-stat {
+            background: var(--white);
+            border: 1px solid var(--gray-100);
+            border-radius: 2px;
+            padding: 10px 12px;
+        }
+
+        .mock-stat-label {
+            font-size: 9px;
+            color: var(--gray-400);
+            text-transform: uppercase;
+            letter-spacing: .06em;
+            font-family: var(--font-mono);
+        }
+
+        .mock-stat-value {
+            font-size: 15px;
+            font-weight: 800;
+            font-family: var(--font-mono);
+            margin-top: 2px;
+        }
+
+        .mock-chart-card {
+            background: var(--white);
+            border: 1px solid var(--gray-100);
+            border-radius: 2px;
+            padding: 12px;
+        }
+
+        .mock-chart-title {
+            font-size: 10px;
+            font-weight: 700;
+            font-family: var(--font-mono);
+            margin-bottom: 10px;
+        }
+
+        .mock-bar-chart {
+            display: flex;
+            align-items: flex-end;
+            gap: 6px;
+            height: 80px;
+        }
+
+        .mock-bar-group {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 3px;
+        }
+
+        .mock-bar {
+            width: 100%;
+            background: var(--black);
+            border-radius: 2px;
+        }
+
+        .mock-bar-label {
+            font-size: 8px;
+            color: var(--gray-400);
+            font-family: var(--font-mono);
+        }
+
+        /* ── OVERVIEW ── */
         .overview {
             padding: 100px 0;
             background: var(--white);
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 56px;
+        }
+
+        .section-header h2 {
+            font-size: 30px;
+            margin-bottom: 12px;
         }
 
         .overview-grid {
@@ -277,14 +589,14 @@
         }
 
         .overview-text h2 {
-            font-size: 32px;
+            font-size: 28px;
             margin-bottom: 16px;
         }
 
         .overview-text p {
-            font-size: 16px;
+            font-size: 15px;
             color: var(--gray-500);
-            margin-bottom: 20px;
+            margin-bottom: 16px;
         }
 
         .overview-image {
@@ -307,20 +619,10 @@
             }
         }
 
-        /* HOW IT WORKS */
+        /* ── STEPS ── */
         .steps {
             padding: 80px 0;
             background: var(--gray-50);
-        }
-
-        .section-header {
-            text-align: center;
-            margin-bottom: 56px;
-        }
-
-        .section-header h2 {
-            font-size: 32px;
-            margin-bottom: 12px;
         }
 
         .steps-grid {
@@ -347,16 +649,16 @@
         }
 
         .step-card h3 {
-            font-size: 18px;
+            font-size: 17px;
             margin-bottom: 8px;
         }
 
         .step-card p {
-            font-size: 14px;
+            font-size: 13px;
             color: var(--gray-500);
         }
 
-        /* FEATURES */
+        /* ── FEATURES ── */
         .features {
             padding: 100px 0;
             background: var(--black);
@@ -385,7 +687,7 @@
         .feature-icon {
             width: 48px;
             height: 48px;
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, .1);
             border-radius: var(--radius);
             display: flex;
             align-items: center;
@@ -394,16 +696,16 @@
         }
 
         .feature-item h3 {
-            font-size: 16px;
+            font-size: 15px;
             margin-bottom: 6px;
         }
 
         .feature-item p {
-            font-size: 14px;
+            font-size: 13px;
             color: var(--gray-400);
         }
 
-        /* PRICING */
+        /* ── PRICING ── */
         .pricing {
             padding: 100px 0;
             background: var(--white);
@@ -411,7 +713,7 @@
 
         .pricing-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
             gap: 24px;
             align-items: start;
             margin-top: 48px;
@@ -421,7 +723,7 @@
             background: var(--gray-50);
             border: 2px solid var(--gray-200);
             border-radius: var(--radius);
-            padding: 40px 32px;
+            padding: 36px 28px;
             transition: border-color .2s;
             position: relative;
         }
@@ -443,28 +745,27 @@
             transform: translateX(-50%);
             background: var(--blue);
             color: var(--white);
-            font-size: 11px;
+            font-size: 10px;
             font-family: var(--font-mono);
             font-weight: 700;
             text-transform: uppercase;
-            padding: 4px 12px;
+            padding: 3px 12px;
             border-radius: 20px;
             letter-spacing: .08em;
         }
 
         .plan-name {
             font-family: var(--font-mono);
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 700;
-            margin-bottom: 12px;
+            margin-bottom: 8px;
         }
 
         .plan-price {
-            font-family: var(--font-mono);
-            font-size: 40px;
+            font-size: 32px;
             font-weight: 800;
-            margin-bottom: 24px;
-            line-height: 1;
+            font-family: var(--font-mono);
+            margin-bottom: 20px;
         }
 
         .plan-price span {
@@ -475,25 +776,30 @@
 
         .plan-features {
             list-style: none;
-            margin-bottom: 32px;
+            margin-bottom: 24px;
         }
 
         .plan-features li {
             display: flex;
             align-items: center;
-            gap: 10px;
-            font-size: 14px;
-            color: var(--gray-500);
-            margin-bottom: 12px;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--gray-600);
+            padding: 4px 0;
+        }
+
+        .plan-features li:last-child {
+            border-bottom: none;
         }
 
         .plan-features li::before {
             content: '✓';
             color: var(--green);
             font-weight: 700;
+            font-size: 11px;
         }
 
-        /* CONTACT FORM */
+        /* ── CONTACT ── */
         .contact {
             padding: 100px 0;
             background: var(--gray-50);
@@ -516,61 +822,42 @@
         }
 
         .contact-info h2 {
-            font-size: 32px;
+            font-size: 30px;
             margin-bottom: 8px;
         }
 
         .contact-info p {
             color: var(--gray-500);
-            margin-bottom: 12px;
-        }
-
-        .contact-method {
-            margin-bottom: 12px;
-        }
-
-        .contact-method strong {
-            display: block;
-            font-family: var(--font-mono);
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: .08em;
-            color: var(--gray-400);
-            margin-bottom: 4px;
-        }
-
-        .contact-method span {
-            font-size: 16px;
-            font-weight: 500;
+            margin-bottom: 20px;
         }
 
         .contact-form-card {
             background: var(--white);
             border: 1px solid var(--gray-200);
             border-radius: var(--radius);
-            padding: 32px;
+            padding: 28px;
             box-shadow: var(--shadow-sm);
         }
 
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 16px;
         }
 
         .form-label {
             display: block;
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: .08em;
             color: var(--gray-500);
-            margin-bottom: 8px;
+            margin-bottom: 6px;
             font-family: var(--font-mono);
         }
 
         .form-input,
         .form-textarea {
             width: 100%;
-            padding: 0 16px;
+            padding: 0 12px;
             border: 1px solid var(--gray-200);
             border-radius: var(--radius);
             font-family: var(--font-main);
@@ -578,15 +865,16 @@
             outline: none;
             transition: border-color .15s;
             background: var(--white);
+            color: var(--black);
         }
 
         .form-input {
-            height: 44px;
+            height: 40px;
         }
 
         .form-textarea {
-            padding: 16px;
-            height: 140px;
+            padding: 12px;
+            height: 120px;
             resize: none;
         }
 
@@ -596,13 +884,59 @@
             box-shadow: 0 0 0 2px rgba(10, 10, 10, .06);
         }
 
-        /* FOOTER */
+        .form-input.invalid {
+            border-color: var(--red);
+        }
+
+        /* Toast */
+        #toast-container {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .toast {
+            background: var(--black);
+            color: var(--white);
+            padding: 12px 18px;
+            border-radius: var(--radius);
+            font-size: 13px;
+            font-weight: 500;
+            box-shadow: var(--shadow-md);
+            max-width: 300px;
+            animation: toastIn .25s ease;
+        }
+
+        .toast.toast-success {
+            background: var(--green);
+        }
+
+        .toast.toast-error {
+            background: var(--red);
+        }
+
+        @keyframes toastIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* ── FOOTER ── */
         footer {
             background: var(--black);
             color: var(--gray-400);
             padding: 48px 0;
             font-size: 13px;
-            border-top: 1px solid #1f1f1f;
         }
 
         .footer-inner {
@@ -617,19 +951,89 @@
             font-family: var(--font-mono);
             font-weight: 700;
             color: var(--white);
-            font-size: 16px;
+            font-size: 15px;
+        }
+
+        /* Utilities */
+        .mb-20 {
+            margin-bottom: 20px;
         }
     </style>
 </head>
 
 <body>
 
+    <!-- MOBILE SIDEBAR OVERLAY -->
+    <div id="sidebar-overlay" onclick="closeSidebar()"></div>
+
+    <!-- MOBILE SIDEBAR -->
+    <aside id="mobile-sidebar">
+        <div class="sidebar-logo">
+            <div class="sidebar-logo-inner">
+                <div class="sidebar-logo-icon">
+                    <svg width="16" height="16" fill="none" stroke="#0a0a0a" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round" viewBox="0 0 24 24">
+                        <rect x="2" y="5" width="20" height="14" rx="2" />
+                        <line x1="2" y1="10" x2="22" y2="10" />
+                    </svg>
+                </div>
+                <span class="sidebar-logo-text">SaleStation</span>
+            </div>
+            <button class="sidebar-close-btn" onclick="closeSidebar()">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round" viewBox="0 0 24 24">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+            </button>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="nav-section-label">Navigation</div>
+            <a href="#platform" class="sidebar-nav-item" onclick="closeSidebar()">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round" viewBox="0 0 24 24">
+                    <rect x="3" y="3" width="7" height="7" />
+                    <rect x="14" y="3" width="7" height="7" />
+                    <rect x="14" y="14" width="7" height="7" />
+                    <rect x="3" y="14" width="7" height="7" />
+                </svg>
+                Platform
+            </a>
+            <a href="#features" class="sidebar-nav-item" onclick="closeSidebar()">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round" viewBox="0 0 24 24">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                </svg>
+                Features
+            </a>
+            <a href="#pricing" class="sidebar-nav-item" onclick="closeSidebar()">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round" viewBox="0 0 24 24">
+                    <rect x="2" y="5" width="20" height="14" rx="2" />
+                    <line x1="2" y1="10" x2="22" y2="10" />
+                </svg>
+                Pricing
+            </a>
+            <a href="#contact" class="sidebar-nav-item" onclick="closeSidebar()">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round" viewBox="0 0 24 24">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                    <polyline points="22,6 12,13 2,6" />
+                </svg>
+                Contact
+            </a>
+        </nav>
+        <div class="sidebar-footer">
+            <a href="signup.html" class="btn btn-primary btn-full">Get Started</a>
+        </div>
+    </aside>
+
     <!-- NAVBAR -->
     <header>
         <div class="container nav-inner">
             <a href="#" class="logo">
                 <div class="logo-icon">
-                    <svg width="18" height="18" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"
+                    <svg width="16" height="16" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"
                         stroke-linejoin="round" viewBox="0 0 24 24">
                         <rect x="2" y="5" width="20" height="14" rx="2" />
                         <line x1="2" y1="10" x2="22" y2="10" />
@@ -638,12 +1042,21 @@
                 SaleStation
             </a>
             <div class="nav-links">
-                <a href="#platform" class="hide-mobile">Platform</a>
-                <a href="#features" class="hide-mobile">Features</a>
-                <a href="#pricing" class="hide-mobile">Pricing</a>
-                <a href="#contact" class="hide-mobile">Contact</a>
-                <a href="signup.html" class="btn btn-outline" style="height: 36px;">Login</a>
-                <a href="signup.html" class="btn btn-primary" style="height: 36px;">Get Started</a>
+                <a href="#platform" class="nav-link hide-mobile">Platform</a>
+                <a href="#features" class="nav-link hide-mobile">Features</a>
+                <a href="#pricing" class="nav-link hide-mobile">Pricing</a>
+                <a href="#contact" class="nav-link hide-mobile">Contact</a>
+                <a href="signup.html" class="btn btn-outline hide-mobile" style="height:36px;font-size:13px">Login</a>
+                <a href="signup.html" class="btn btn-primary hide-mobile" style="height:36px;font-size:13px">Get
+                    Started</a>
+                <button class="hamburger-btn" onclick="openSidebar()" aria-label="Open menu">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                        <line x1="3" y1="12" x2="21" y2="12" />
+                        <line x1="3" y1="6" x2="21" y2="6" />
+                        <line x1="3" y1="18" x2="21" y2="18" />
+                    </svg>
+                </button>
             </div>
         </div>
     </header>
@@ -659,20 +1072,75 @@
                 <a href="#platform" class="btn btn-outline btn-lg hide-mobile">Explore Platform</a>
             </div>
 
-            <!-- ADMIN DASHBOARD SCREENSHOT -->
+            <!-- ANIMATED DASHBOARD MOCKUP -->
             <div class="hero-mockup">
                 <div class="mockup-header">
                     <div class="mockup-dot" style="background:#ff5f56"></div>
                     <div class="mockup-dot" style="background:#ffbd2e"></div>
                     <div class="mockup-dot" style="background:#27c93f"></div>
                 </div>
-
-                <img src="admin-dashboard-screenshot.png" alt="SaleStation Admin Dashboard Overview">
+                <div class="mockup-body">
+                    <div class="mockup-sidebar">
+                        <div class="mock-sidebar-logo">
+                            <div class="mock-sidebar-logo-icon">
+                                <svg width="10" height="10" fill="none" stroke="#0a0a0a" stroke-width="2"
+                                    viewBox="0 0 24 24">
+                                    <rect x="2" y="5" width="20" height="14" rx="2" />
+                                    <line x1="2" y1="10" x2="22" y2="10" />
+                                </svg>
+                            </div>
+                            <span class="mock-sidebar-logo-text">SaleStation</span>
+                        </div>
+                        <div class="mock-nav-item active">
+                            <div class="mock-nav-dot"></div> Dashboard
+                        </div>
+                        <div class="mock-nav-item">
+                            <div class="mock-nav-dot"></div> POS
+                        </div>
+                        <div class="mock-nav-item">
+                            <div class="mock-nav-dot"></div> Inventory
+                        </div>
+                        <div class="mock-nav-item">
+                            <div class="mock-nav-dot"></div> Cashiers
+                        </div>
+                        <div class="mock-nav-item">
+                            <div class="mock-nav-dot"></div> Transactions
+                        </div>
+                    </div>
+                    <div class="mockup-content">
+                        <div style="font-family:var(--font-mono);font-size:13px;font-weight:700;margin-bottom:12px">
+                            Dashboard</div>
+                        <div class="mock-stats">
+                            <div class="mock-stat">
+                                <div class="mock-stat-label">Today's Sales</div>
+                                <div class="mock-stat-value">R1,240</div>
+                            </div>
+                            <div class="mock-stat">
+                                <div class="mock-stat-label">Monthly</div>
+                                <div class="mock-stat-value">R18.4k</div>
+                            </div>
+                            <div class="mock-stat">
+                                <div class="mock-stat-label">Yearly</div>
+                                <div class="mock-stat-value">R142k</div>
+                            </div>
+                            <div class="mock-stat">
+                                <div class="mock-stat-label">Transactions</div>
+                                <div class="mock-stat-value">487</div>
+                            </div>
+                        </div>
+                        <div class="mock-chart-card">
+                            <div class="mock-chart-title">Weekly Sales Overview</div>
+                            <div class="mock-bar-chart" id="hero-bar-chart">
+                                <!-- filled by JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </section>
 
-    <!-- PLATFORM OVERVIEW / MORE DETAILS -->
+    <!-- PLATFORM OVERVIEW -->
     <section id="platform" class="overview">
         <div class="container">
             <div class="section-header">
@@ -689,35 +1157,35 @@
                         data-driven decisions that grow your bottom line.</p>
                 </div>
                 <div class="overview-image">
-                    <svg width="80" height="80" fill="none" stroke="var(--gray-300)" stroke-width="1.5"
-                        viewBox="0 0 24 24" style="margin-bottom: 20px;">
+                    <svg width="72" height="72" fill="none" stroke="var(--gray-300)" stroke-width="1.5"
+                        viewBox="0 0 24 24" style="margin-bottom:16px">
                         <rect x="3" y="3" width="7" height="7" />
                         <rect x="14" y="3" width="7" height="7" />
                         <rect x="14" y="14" width="7" height="7" />
                         <rect x="3" y="14" width="7" height="7" />
                     </svg>
-                    <h3 style="color: var(--gray-500)">Real-Time Revenue Tracking</h3>
+                    <h3 style="color:var(--gray-500)">Real-Time Revenue Tracking</h3>
                 </div>
             </div>
 
             <div class="overview-grid">
                 <div class="overview-text">
                     <h2>Absolute Inventory Control</h2>
-                    <p>Manage hundreds of items effortlessly. Add new products, organize them into categories like
-                        Meals, Drinks, or Snacks, and instantly update pricing.</p>
+                    <p>Manage hundreds of items effortlessly. Add new products and instantly update pricing with just a
+                        few clicks.</p>
                     <p>Run out of stock? Toggle an item's status to "Inactive" and it instantly vanishes from your
                         staffs' POS terminals. No syncing delays, no confusion.</p>
                 </div>
                 <div class="overview-image">
-                    <svg width="80" height="80" fill="none" stroke="var(--gray-300)" stroke-width="1.5"
-                        viewBox="0 0 24 24" style="margin-bottom: 20px;">
+                    <svg width="72" height="72" fill="none" stroke="var(--gray-300)" stroke-width="1.5"
+                        viewBox="0 0 24 24" style="margin-bottom:16px">
                         <line x1="16.5" y1="9.4" x2="7.5" y2="4.21" />
                         <path
                             d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
                         <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
                         <line x1="12" y1="22.08" x2="12" y2="12" />
                     </svg>
-                    <h3 style="color: var(--gray-500)">Live Catalog Sync</h3>
+                    <h3 style="color:var(--gray-500)">Live Catalog Sync</h3>
                 </div>
             </div>
 
@@ -726,18 +1194,18 @@
                     <h2>Ironclad Accountability & Security</h2>
                     <p>Create dedicated accounts for every staff member. Role-based access ensures staff only see the
                         POS, while Admins get the full picture.</p>
-                    <p>Premium users unlock complete Audit Logs, recording every action-from inventory adjustments to
-                        staff suspensions-so you always know who did what, and when.</p>
+                    <p>Premium users unlock complete Audit Logs, recording every action — from inventory adjustments to
+                        staff suspensions — so you always know who did what, and when.</p>
                 </div>
                 <div class="overview-image">
-                    <svg width="80" height="80" fill="none" stroke="var(--gray-300)" stroke-width="1.5"
-                        viewBox="0 0 24 24" style="margin-bottom: 20px;">
+                    <svg width="72" height="72" fill="none" stroke="var(--gray-300)" stroke-width="1.5"
+                        viewBox="0 0 24 24" style="margin-bottom:16px">
                         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
                         <circle cx="9" cy="7" r="4" />
                         <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
                         <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                     </svg>
-                    <h3 style="color: var(--gray-500)">Role-Based Access Control</h3>
+                    <h3 style="color:var(--gray-500)">Role-Based Access Control</h3>
                 </div>
             </div>
         </div>
@@ -760,8 +1228,8 @@
                 <div class="step-card">
                     <div class="step-number">02</div>
                     <h3>Add items & team</h3>
-                    <p>Load your inventory categories and prices. Assign staff to specific locations with dedicated
-                        secure logins.</p>
+                    <p>Load your inventory and prices. Assign staff to specific locations with dedicated secure logins.
+                    </p>
                 </div>
                 <div class="step-card">
                     <div class="step-number">03</div>
@@ -783,7 +1251,7 @@
             <div class="feature-grid">
                 <div class="feature-item">
                     <div class="feature-icon">
-                        <svg width="24" height="24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"
+                        <svg width="22" height="22" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"
                             stroke-linejoin="round" viewBox="0 0 24 24">
                             <circle cx="9" cy="21" r="1" />
                             <circle cx="20" cy="21" r="1" />
@@ -798,7 +1266,7 @@
                 </div>
                 <div class="feature-item">
                     <div class="feature-icon">
-                        <svg width="24" height="24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"
+                        <svg width="22" height="22" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"
                             stroke-linejoin="round" viewBox="0 0 24 24">
                             <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
                             <circle cx="12" cy="10" r="3" />
@@ -812,7 +1280,7 @@
                 </div>
                 <div class="feature-item">
                     <div class="feature-icon">
-                        <svg width="24" height="24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"
+                        <svg width="22" height="22" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"
                             stroke-linejoin="round" viewBox="0 0 24 24">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                             <polyline points="7 10 12 15 17 10" />
@@ -827,7 +1295,7 @@
                 </div>
                 <div class="feature-item">
                     <div class="feature-icon">
-                        <svg width="24" height="24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"
+                        <svg width="22" height="22" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"
                             stroke-linejoin="round" viewBox="0 0 24 24">
                             <rect x="2" y="5" width="20" height="14" rx="2" />
                             <line x1="2" y1="10" x2="22" y2="10" />
@@ -850,9 +1318,7 @@
                 <h2>Simple, transparent pricing</h2>
                 <p class="text-muted">Start for free. Upgrade when you need more power.</p>
             </div>
-
             <div class="pricing-grid">
-                <!-- Trial -->
                 <div class="plan-card">
                     <div class="plan-name">Free Trial</div>
                     <div class="plan-price">R0<span> / 7 days</span></div>
@@ -862,10 +1328,8 @@
                         <li>Full POS Features</li>
                         <li>No downloads</li>
                     </ul>
-                    <a href="signup.html" class="btn btn-outline" style="width: 100%;">Start Trial</a>
+                    <a href="signup.html" class="btn btn-outline" style="width:100%">Start Trial</a>
                 </div>
-
-                <!-- Starter -->
                 <div class="plan-card">
                     <div class="plan-name">Starter</div>
                     <div class="plan-price">R200<span> / mo</span></div>
@@ -876,10 +1340,8 @@
                         <li>Weekly Statements Export</li>
                         <li>2-day grace period</li>
                     </ul>
-                    <a href="signup.html" class="btn btn-primary" style="width: 100%;">Choose Starter</a>
+                    <a href="signup.html" class="btn btn-primary" style="width:100%">Choose Starter</a>
                 </div>
-
-                <!-- Premium -->
                 <div class="plan-card popular">
                     <div class="popular-badge">Most Popular</div>
                     <div class="plan-name">Premium</div>
@@ -892,13 +1354,13 @@
                         <li>Weekly, Monthly & Yearly Exports</li>
                         <li>2-day grace period</li>
                     </ul>
-                    <a href="signup.html" class="btn btn-primary" style="width: 100%;">Choose Premium</a>
+                    <a href="signup.html" class="btn btn-primary" style="width:100%">Choose Premium</a>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- CONTACT SECTION -->
+    <!-- CONTACT -->
     <section id="contact" class="contact">
         <div class="container">
             <div class="contact-wrapper">
@@ -906,25 +1368,24 @@
                     <h2>Get in touch</h2>
                     <p>Have questions about plans, need a custom setup, or want to report an issue? Our team is here to
                         help.</p>
+                    <p style="font-size:13px;color:var(--gray-400)">Messages are received directly by our support team
+                        and we aim to respond within 24 hours.</p>
                 </div>
-
                 <div class="contact-form-card">
-                    <form
-                        onsubmit="event.preventDefault(); alert('Thanks for reaching out! In the prototype, this form is purely visual.');">
-                        <div class="form-group">
-                            <label class="form-label">Full Name</label>
-                            <input type="text" class="form-input" placeholder="John Doe" required>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Email Address</label>
-                            <input type="email" class="form-input" placeholder="name@business.com" required>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Message</label>
-                            <textarea class="form-textarea" placeholder="Provide details here..." required></textarea>
-                        </div>
-                        <button type="submit" class="btn btn-primary btn-full">Send Message</button>
-                    </form>
+                    <div class="form-group">
+                        <label class="form-label">Full Name</label>
+                        <input type="text" id="contact-name" class="form-input" placeholder="John Doe">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Email Address</label>
+                        <input type="email" id="contact-email" class="form-input" placeholder="name@business.com">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Message</label>
+                        <textarea id="contact-message" class="form-textarea"
+                            placeholder="How can we help you?"></textarea>
+                    </div>
+                    <button class="btn btn-primary btn-full" onclick="sendContactMessage()">Send Message</button>
                 </div>
             </div>
         </div>
@@ -935,16 +1396,178 @@
         <div class="container footer-inner">
             <div>
                 <div class="footer-logo">SaleStation</div>
-                <p style="margin-top: 8px;">The distraction-free POS for modern retail.</p>
+                <p style="margin-top:6px">The distraction-free POS for modern retail.</p>
             </div>
-            <div style="display: flex; gap: 24px;">
-                <a href="signup.html" style="color: var(--gray-400); text-decoration: none;">Login</a>
-                <a href="signup.html" style="color: var(--gray-400); text-decoration: none;">Register</a>
-                <a href="#" style="color: var(--gray-400); text-decoration: none;">Terms</a>
-                <a href="#" style="color: var(--gray-400); text-decoration: none;">Privacy</a>
+            <div style="display:flex;gap:24px;flex-wrap:wrap">
+                <a href="signup.html" style="color:var(--gray-400);text-decoration:none">Login</a>
+                <a href="signup.html" style="color:var(--gray-400);text-decoration:none">Register</a>
+                <a href="#" style="color:var(--gray-400);text-decoration:none">Terms</a>
+                <a href="#" style="color:var(--gray-400);text-decoration:none">Privacy</a>
             </div>
         </div>
     </footer>
+
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+
+    <script>
+        // ── SIDEBAR TOGGLE ──
+        function openSidebar() {
+            document.getElementById('mobile-sidebar').classList.add('open');
+            document.getElementById('sidebar-overlay').classList.add('open');
+            document.body.style.overflow = 'hidden';
+        }
+        function closeSidebar() {
+            document.getElementById('mobile-sidebar').classList.remove('open');
+            document.getElementById('sidebar-overlay').classList.remove('open');
+            document.body.style.overflow = '';
+        }
+
+        // ── TOAST ──
+        function toast(msg, type) {
+            const el = document.createElement('div');
+            el.className = 'toast' + (type === 'success' ? ' toast-success' : type === 'error' ? ' toast-error' : '');
+            el.textContent = msg;
+            document.getElementById('toast-container').appendChild(el);
+            setTimeout(() => el.remove(), 3800);
+        }
+
+        // ── SHARED STORAGE KEY (same as signup.html) ──
+        const STORAGE_KEY = 'salestation_v5';
+
+        function getStore() {
+            try {
+                const d = localStorage.getItem(STORAGE_KEY);
+                if (!d) return null;
+                return JSON.parse(d);
+            } catch (e) { return null; }
+        }
+
+        function updateStore(fn) {
+            const base = getStore() || {
+                users: [{ id: 'super-admin-1', name: 'Super Admin', email: 'admin@salestation.co.za', password: 'password', role: 'super-admin', status: 'active' }],
+                businesses: [], items: [], transactions: [], messages: [],
+                subscriptions: [], locations: [], auditLogs: [], currentUser: null
+            };
+            const next = fn(base);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        }
+
+        function uid() {
+            return Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
+        }
+
+        // ── CONTACT FORM → sends to super admin messages store ──
+        function sendContactMessage() {
+            const nameEl = document.getElementById('contact-name');
+            const emailEl = document.getElementById('contact-email');
+            const msgEl = document.getElementById('contact-message');
+
+            const name = nameEl.value.trim();
+            const email = emailEl.value.trim();
+            const msg = msgEl.value.trim();
+
+            // Validation
+            let valid = true;
+            [nameEl, emailEl, msgEl].forEach(el => el.classList.remove('invalid'));
+            if (!name) { nameEl.classList.add('invalid'); valid = false; }
+            if (!email || !email.includes('@')) { emailEl.classList.add('invalid'); valid = false; }
+            if (!msg) { msgEl.classList.add('invalid'); valid = false; }
+            if (!valid) { toast('Please fill in all fields correctly.', 'error'); return; }
+
+            // Save message into shared localStorage so super-admin can see it in signup.html
+            updateStore(d => ({
+                ...d,
+                messages: [
+                    ...(d.messages || []),
+                    {
+                        id: 'msg-' + uid(),
+                        businessId: 'direct',
+                        businessName: name,
+                        senderName: name,
+                        senderRole: 'visitor',
+                        email: email,
+                        message: msg,
+                        createdAt: new Date().toISOString(),
+                        read: false
+                    }
+                ]
+            }));
+
+            // Clear form
+            nameEl.value = '';
+            emailEl.value = '';
+            msgEl.value = '';
+
+            toast('Message sent! We\'ll get back to you within 24 hours.', 'success');
+        }
+
+        // ── HERO BAR CHART ──
+        // Shows the 7 days of the current week (Sun–Sat) with actual dates as labels.
+        // Each bar only counts transactions for that exact calendar date.
+        // Bars auto-reset: each date's data is independent — Friday never bleeds into Saturday.
+        (function buildHeroBarChart() {
+            const container = document.getElementById('hero-bar-chart');
+            if (!container) return;
+
+            const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+            // Build week: starting Sunday of current week through today
+            const now = new Date();
+            const todayDow = now.getDay(); // 0=Sun … 6=Sat
+
+            // Gather real transaction data per calendar date from localStorage
+            let txnsByDate = {};
+            try {
+                const store = getStore();
+                if (store && store.transactions) {
+                    store.transactions.forEach(t => {
+                        // t.createdAt is ISO string — extract YYYY-MM-DD
+                        const ds = t.createdAt.split('T')[0];
+                        txnsByDate[ds] = (txnsByDate[ds] || 0) + (t.amount || 0);
+                    });
+                }
+            } catch (e) { }
+
+            // Build 7 day slots for the current week (Sun to Sat)
+            const weekDays = [];
+            for (let i = 0; i <= 6; i++) {
+                const d = new Date(now);
+                d.setHours(0, 0, 0, 0);
+                // offset from current day index: i - todayDow gives day offset
+                d.setDate(d.getDate() - (todayDow - i));
+                const isoDate = d.toISOString().split('T')[0];
+                const dayLabel = DAYS[i];
+                const dateLabel = (d.getDate()).toString().padStart(2, '0') + '/' + (d.getMonth() + 1).toString().padStart(2, '0');
+                const isFuture = i > todayDow;
+                const amount = txnsByDate[isoDate] || 0;
+                weekDays.push({ dayLabel, dateLabel, amount, isFuture, isToday: i === todayDow });
+            }
+
+            const maxAmount = Math.max(...weekDays.map(d => d.amount), 1);
+
+            // Render
+            container.innerHTML = weekDays.map(d => {
+                const heightPx = Math.max((d.amount / maxAmount) * 56, 2);
+                const opacity = d.isFuture ? '0.25' : '1';
+                let valLabel = '';
+                if (d.amount > 0) {
+                    if (d.amount >= 1000000) valLabel = 'R' + (d.amount / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+                    else if (d.amount >= 1000) valLabel = 'R' + (d.amount / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+                    else valLabel = 'R' + Math.round(d.amount);
+                }
+                return `
+                    <div class="mock-bar-group" style="opacity:${opacity}">
+                        <div style="font-size:7px;color:var(--gray-500);font-family:var(--font-mono);height:10px;display:flex;align-items:flex-end;justify-content:center">${valLabel}</div>
+                        <div class="mock-bar" style="height:${heightPx}px;background:${d.isToday ? 'var(--black)' : 'var(--gray-300)'};border-radius:2px"></div>
+                        <div class="mock-bar-label" style="font-size:7px;text-align:center">
+                            <div>${d.dayLabel}</div>
+                            <div style="color:var(--gray-300)">${d.dateLabel}</div>
+                        </div>
+                    </div>`;
+            }).join('');
+        })();
+    </script>
 
 </body>
 

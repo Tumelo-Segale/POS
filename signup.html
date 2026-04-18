@@ -1394,12 +1394,14 @@
             font-family: var(--font-mono)
         }
 
-        /* SUBSCRIPTIONS */
-        .sub-plan-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 16px
+        @media(max-width:600px) {
+            .sub-grid {
+                grid-template-columns: 1fr !important;
+            }
+
+            .sub-details-grid {
+                grid-template-columns: 1fr !important;
+            }
         }
 
         .sub-plan-name {
@@ -1816,7 +1818,9 @@
                 <ul class="plan-features">
                     <li>Max 1 Cashier</li>
                     <li>Max 10 Items</li>
-                    <li>No downloads</li>
+                    <li>Full POS Checkout</li>
+                    <li>Transaction Receipts</li>
+                    <li>No statement downloads</li>
                     <li>No grace period</li>
                 </ul>
             </div>
@@ -1829,7 +1833,8 @@
                 <ul class="plan-features">
                     <li>Max 2 Cashiers</li>
                     <li>Max 50 Items</li>
-                    <li>Weekly Statement only</li>
+                    <li>Transaction Receipts</li>
+                    <li>Weekly Statement Export</li>
                     <li>2-day grace period</li>
                 </ul>
             </div>
@@ -1842,9 +1847,10 @@
                 <ul class="plan-features">
                     <li>Unlimited Cashiers</li>
                     <li>Unlimited Items</li>
-                    <li>Weekly, Monthly &amp; Yearly Statements</li>
+                    <li>Transaction Receipts</li>
                     <li>Multi-Store (up to 3 locations)</li>
-                    <li>Audit Logs</li>
+                    <li>Audit Action Logs</li>
+                    <li>Weekly, Monthly &amp; Yearly Exports</li>
                     <li>2-day grace period</li>
                 </ul>
             </div>
@@ -1962,9 +1968,46 @@
         const STORAGE_KEY = 'salestation_v5';
 
         const PLAN_LIMITS = {
-            trial: { cashiers: 1, items: 10, statements: [], price: 0, label: 'Trial', graceDays: 0, durationDays: 7 },
-            starter: { cashiers: 2, items: 50, statements: ['weekly'], price: 200, label: 'Starter', graceDays: 2, durationDays: 30 },
-            premium: { cashiers: Infinity, items: Infinity, statements: ['weekly', 'monthly', 'yearly'], price: 500, label: 'Premium', graceDays: 2, durationDays: 30 },
+            trial: {
+                cashiers: 1, items: 10, statements: [], price: 0,
+                label: 'Trial', graceDays: 0, durationDays: 7,
+                features: [
+                    'Max 1 Cashier',
+                    'Max 10 Items',
+                    'Full POS Checkout',
+                    'Contact Support',
+                    'No statement downloads',
+                    'No grace period',
+                ]
+            },
+            starter: {
+                cashiers: 2, items: 50, statements: ['weekly'], price: 200,
+                label: 'Starter', graceDays: 2, durationDays: 30,
+                features: [
+                    'Max 2 Cashiers',
+                    'Max 50 Items',
+                    'Full POS Checkout',
+                    'Transaction Receipts',
+                    'Weekly Statement Export',
+                    '2-day grace period',
+                    'Contact Support',
+                ]
+            },
+            premium: {
+                cashiers: Infinity, items: Infinity, statements: ['weekly', 'monthly', 'yearly'], price: 500,
+                label: 'Premium', graceDays: 2, durationDays: 30,
+                features: [
+                    'Unlimited Cashiers',
+                    'Unlimited Items',
+                    'Full POS Checkout',
+                    'Transaction Receipts',
+                    'Multi-Store (up to 3 locations)',
+                    'Audit Action Logs',
+                    'Weekly, Monthly & Yearly Exports',
+                    '2-day grace period',
+                    'Contact Support',
+                ]
+            },
         };
 
         const initialData = {
@@ -4240,31 +4283,51 @@
     ${st?.inGrace ? `<div class="alert alert-orange mb-20">${Icon.alert} Grace period: ${st.graceLeft} day(s) remaining. Renew before expiry to keep your account active.</div>` : ''}
     ${st?.status === 'expired' ? `<div class="alert alert-red mb-20">${Icon.alert} Subscription expired. All functionality is suspended. Please renew.</div>` : ''}
     ${st?.active && !st?.inGrace && typeof st?.daysLeft === 'number' && st?.daysLeft <= 3 && st?.daysLeft > 0 ? `<div class="alert alert-accent mb-20">${Icon.alert} <strong>Heads up:</strong> Your subscription expires in <strong>${st.daysLeft} day(s)</strong>. Renew before it ends to avoid interruption.</div>` : ''}
-    <div class="card" style="max-width:560px">
-      <div class="card-body">
-        <div class="sub-plan-header">
-          <div>
-            <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--gray-400);font-family:var(--font-mono);margin-bottom:4px">Current Plan</div>
-            <div class="sub-plan-name">${limits.label}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:760px" class="sub-grid">
+
+      <!-- Current Plan Card -->
+      <div class="card" style="grid-column:1/-1">
+        <div class="card-body">
+          <div class="sub-plan-header">
+            <div>
+              <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--gray-400);font-family:var(--font-mono);margin-bottom:4px">Current Plan</div>
+              <div class="sub-plan-name">${limits.label}</div>
+            </div>
+            <span class="badge ${badgeClass}" style="font-size:11px;padding:4px 10px">${st?.label || sub.status}</span>
           </div>
-          <span class="badge ${badgeClass}" style="font-size:11px;padding:4px 10px">${st?.label || sub.status}</span>
-        </div>
-        <div class="sub-detail-row"><span class="sub-detail-label">Price</span><span class="sub-detail-val">${limits.price === 0 ? 'Free Trial' : formatCurrency(limits.price) + '/month'}</span></div>
-        <div class="sub-detail-row"><span class="sub-detail-label">Expiry Date</span><span class="sub-detail-val">${formatDateShort(sub.expiresAt)}</span></div>
-        <div class="sub-detail-row"><span class="sub-detail-label">Cashier Limit</span><span class="sub-detail-val">${cashierLimitStr}</span></div>
-        <div class="sub-detail-row"><span class="sub-detail-label">Item Limit</span><span class="sub-detail-val">${itemLimitStr}</span></div>
-        <div class="sub-detail-row"><span class="sub-detail-label">Statements</span><span class="sub-detail-val">${limits.statements.length === 0 ? 'None' : limits.statements.join(', ')}</span></div>
-        <div class="sub-detail-row"><span class="sub-detail-label">Grace Period</span><span class="sub-detail-val">${limits.graceDays === 0 ? 'None' : limits.graceDays + ' days'}</span></div>
-        ${nextPlan ? `<div class="alert alert-blue">${Icon.alert} Upgrade to <strong>${PLAN_LIMITS[nextPlan]?.label}</strong> scheduled at next renewal (${formatDateShort(sub.expiresAt)})</div>` : ''}
-        ${sub.status === 'cancelled' && st?.active ? `<div class="alert alert-orange" style="margin-top:12px">${Icon.alert} Subscription cancelled — access remains until <strong>${formatDateShort(sub.expiresAt)}</strong>. Renew before that date to avoid losing access.</div>` : ''}
-        <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap">
-          ${biz.plan === 'trial' ? `<button class="btn btn-primary" onclick="handleUpgrade('starter')">Upgrade to Starter</button>` : ''}
-          ${biz.plan === 'starter' && !nextPlan && sub.status !== 'cancelled' ? `<button class="btn btn-primary" onclick="handleUpgrade('premium')">Upgrade to Premium</button>` : ''}
-          ${biz.plan === 'trial' ? `<button class="btn btn-outline" onclick="handleUpgrade('premium')">Upgrade to Premium</button>` : ''}
-          ${biz.plan !== 'trial' && st?.active && sub.status !== 'cancelled' ? `<button class="btn btn-outline" onclick="handleRenew()" title="Add another month to your current plan now">Extend Early</button>` : ''}
-          ${biz.plan !== 'trial' && st?.active && sub.status !== 'cancelled' ? `<button class="btn btn-danger-outline" onclick="handleCancelSub()">Cancel Subscription</button>` : ''}
-          ${st?.status === 'cancelled-expired' || st?.status === 'expired' ? `<button class="btn btn-primary" onclick="handleRenew()">Renew Subscription</button>` : ''}
-          ${sub.status === 'cancelled' && st?.active ? `<button class="btn btn-primary" onclick="handleRenew()">Renew Subscription</button>` : ''}
+          <div style="display:grid;grid-template-columns:1fr;gap:4px" class="sub-details-grid">
+            <div class="sub-detail-row"><span class="sub-detail-label">Price</span><span class="sub-detail-val">${limits.price === 0 ? 'Free Trial' : formatCurrency(limits.price) + '/month'}</span></div>
+            <div class="sub-detail-row"><span class="sub-detail-label">Expiry Date</span><span class="sub-detail-val">${formatDateShort(sub.expiresAt)}</span></div>
+            <div class="sub-detail-row"><span class="sub-detail-label">Cashier Limit</span><span class="sub-detail-val">${cashierLimitStr}</span></div>
+            <div class="sub-detail-row"><span class="sub-detail-label">Item Limit</span><span class="sub-detail-val">${itemLimitStr}</span></div>
+            <div class="sub-detail-row"><span class="sub-detail-label">Statements</span><span class="sub-detail-val">${limits.statements.length === 0 ? 'None' : limits.statements.map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(', ')}</span></div>
+            <div class="sub-detail-row"><span class="sub-detail-label">Grace Period</span><span class="sub-detail-val">${limits.graceDays === 0 ? 'None' : limits.graceDays + ' days'}</span></div>
+          </div>
+
+          <!-- Feature list -->
+          <div style="margin-top:16px;padding-top:16px">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gray-400);font-family:var(--font-mono);margin-bottom:10px">Plan Features</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:4px 16px">
+              ${(limits.features || []).map(f => `
+                <div style="display:flex;align-items:center;gap:7px;font-size:12px;padding:3px 0;color:var(--gray-700)">
+                  <svg width="12" height="12" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                  ${f}
+                </div>`).join('')}
+            </div>
+          </div>
+
+          ${nextPlan ? `<div class="alert alert-blue" style="margin-top:14px">${Icon.alert} Upgrade to <strong>${PLAN_LIMITS[nextPlan]?.label}</strong> scheduled at next renewal (${formatDateShort(sub.expiresAt)})</div>` : ''}
+          ${sub.status === 'cancelled' && st?.active ? `<div class="alert alert-orange" style="margin-top:12px">${Icon.alert} Subscription cancelled — access remains until <strong>${formatDateShort(sub.expiresAt)}</strong>. Renew before that date to avoid losing access.</div>` : ''}
+
+          <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap">
+            ${biz.plan === 'trial' ? `<button class="btn btn-primary" onclick="handleUpgrade('starter')">Upgrade to Starter</button>` : ''}
+            ${biz.plan === 'trial' ? `<button class="btn btn-outline" onclick="handleUpgrade('premium')">Upgrade to Premium</button>` : ''}
+            ${biz.plan === 'starter' && !nextPlan && sub.status !== 'cancelled' ? `<button class="btn btn-primary" onclick="handleUpgrade('premium')">Upgrade to Premium</button>` : ''}
+            ${biz.plan !== 'trial' && st?.active && sub.status !== 'cancelled' ? `<button class="btn btn-outline" onclick="handleRenew()" title="Add another month to your current plan now">Extend Early</button>` : ''}
+            ${biz.plan !== 'trial' && st?.active && sub.status !== 'cancelled' ? `<button class="btn btn-danger-outline" onclick="handleCancelSub()">Cancel Subscription</button>` : ''}
+            ${st?.status === 'cancelled-expired' || st?.status === 'expired' ? `<button class="btn btn-primary" onclick="handleRenew()">Renew Subscription</button>` : ''}
+            ${sub.status === 'cancelled' && st?.active ? `<button class="btn btn-primary" onclick="handleRenew()">Renew Subscription</button>` : ''}
+          </div>
         </div>
       </div>
     </div>
@@ -4336,24 +4399,23 @@
         function handleRenew() {
             const store = getStore();
             const biz = store.businesses.find(b => b.id === currentUser.businessId);
-            // Show plan picker (no trial — renewals must pick a paid plan)
+            const featureList = (plan) => (PLAN_LIMITS[plan].features || [])
+                .map(f => `<li>${f}</li>`).join('');
             openModal('Renew Subscription', `
-  <p style="font-size:13px;color:var(--gray-500);margin-bottom:16px">Choose a plan to renew your subscription. Trial plans are not available for renewals.</p>
+  <p style="font-size:13px;color:var(--gray-500);margin-bottom:16px">Choose a plan to renew. Trial plans are not available for renewal.</p>
   <div id="renew-plan-starter" class="plan-card selected" onclick="selectRenewPlan('starter')" style="cursor:pointer">
-    <div class="plan-card-header"><span class="plan-name">Starter</span><span class="plan-price">R${PLAN_LIMITS.starter.price}<span>/mo</span></span></div>
-    <ul class="plan-features">
-      <li>${PLAN_LIMITS.starter.cashiers} cashier</li>
-      <li>${PLAN_LIMITS.starter.items} items</li>
-      <li>Weekly statement</li>
-    </ul>
+    <div class="plan-card-header">
+      <span class="plan-name">Starter</span>
+      <span class="plan-price">R${PLAN_LIMITS.starter.price}<span>/mo</span></span>
+    </div>
+    <ul class="plan-features">${featureList('starter')}</ul>
   </div>
   <div id="renew-plan-premium" class="plan-card" onclick="selectRenewPlan('premium')" style="cursor:pointer">
-    <div class="plan-card-header"><span class="plan-name">Premium <span class="plan-badge-tag popular-badge">Popular</span></span><span class="plan-price">R${PLAN_LIMITS.premium.price}<span>/mo</span></span></div>
-    <ul class="plan-features">
-      <li>Unlimited cashiers</li>
-      <li>Unlimited items</li>
-      <li>Multi-store, Audit logs, All statements</li>
-    </ul>
+    <div class="plan-card-header">
+      <span class="plan-name">Premium <span class="plan-badge-tag popular-badge">Popular</span></span>
+      <span class="plan-price">R${PLAN_LIMITS.premium.price}<span>/mo</span></span>
+    </div>
+    <ul class="plan-features">${featureList('premium')}</ul>
   </div>
   <div style="display:flex;gap:10px;margin-top:16px">
     <button class="btn btn-outline btn-lg" style="flex:1" onclick="closeModal()">Cancel</button>

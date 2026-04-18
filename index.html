@@ -332,6 +332,12 @@
             color: rgba(255, 255, 255, .9);
         }
 
+        .sidebar-nav-item.active {
+            background: var(--white);
+            color: var(--black);
+            font-weight: 600;
+        }
+
         .sidebar-nav-item svg {
             min-width: 18px;
         }
@@ -786,6 +792,7 @@
             font-size: 13px;
             color: var(--gray-600);
             padding: 4px 0;
+            border-bottom: 1px solid var(--gray-100);
         }
 
         .plan-features li:last-child {
@@ -989,7 +996,7 @@
         </div>
         <nav class="sidebar-nav">
             <div class="nav-section-label">Navigation</div>
-            <a href="#platform" class="sidebar-nav-item" onclick="closeSidebar()">
+            <a href="#platform" id="nav-platform" class="sidebar-nav-item" onclick="closeSidebar()">
                 <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                     stroke-linejoin="round" viewBox="0 0 24 24">
                     <rect x="3" y="3" width="7" height="7" />
@@ -999,14 +1006,14 @@
                 </svg>
                 Platform
             </a>
-            <a href="#features" class="sidebar-nav-item" onclick="closeSidebar()">
+            <a href="#features" id="nav-features" class="sidebar-nav-item" onclick="closeSidebar()">
                 <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                     stroke-linejoin="round" viewBox="0 0 24 24">
                     <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
                 </svg>
                 Features
             </a>
-            <a href="#pricing" class="sidebar-nav-item" onclick="closeSidebar()">
+            <a href="#pricing" id="nav-pricing" class="sidebar-nav-item" onclick="closeSidebar()">
                 <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                     stroke-linejoin="round" viewBox="0 0 24 24">
                     <rect x="2" y="5" width="20" height="14" rx="2" />
@@ -1014,7 +1021,7 @@
                 </svg>
                 Pricing
             </a>
-            <a href="#contact" class="sidebar-nav-item" onclick="closeSidebar()">
+            <a href="#contact" id="nav-contact" class="sidebar-nav-item" onclick="closeSidebar()">
                 <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                     stroke-linejoin="round" viewBox="0 0 24 24">
                     <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
@@ -1503,70 +1510,126 @@
         }
 
         // ── HERO BAR CHART ──
-        // Shows the 7 days of the current week (Sun–Sat) with actual dates as labels.
-        // Each bar only counts transactions for that exact calendar date.
-        // Bars auto-reset: each date's data is independent — Friday never bleeds into Saturday.
-        (function buildHeroBarChart() {
-            const container = document.getElementById('hero-bar-chart');
-            if (!container) return;
+        // Uses LOCAL date strings (not UTC .slice) to match signup.html exactly.
+        // Each bar = one calendar day. Sunday 00:00 local = new week, all bars reset.
 
-            const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        function localDateStr(d) {
+            return d.getFullYear() + '-' +
+                String(d.getMonth() + 1).padStart(2, '0') + '-' +
+                String(d.getDate()).padStart(2, '0');
+        }
 
-            // Build week: starting Sunday of current week through today
-            const now = new Date();
-            const todayDow = now.getDay(); // 0=Sun … 6=Sat
+        const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-            // Gather real transaction data per calendar date from localStorage
-            let txnsByDate = {};
+        function getTxnBucket() {
+            const bucket = {};
             try {
                 const store = getStore();
                 if (store && store.transactions) {
                     store.transactions.forEach(t => {
-                        // t.createdAt is ISO string — extract YYYY-MM-DD
-                        const ds = t.createdAt.split('T')[0];
-                        txnsByDate[ds] = (txnsByDate[ds] || 0) + (t.amount || 0);
+                        if (!t.createdAt || !t.amount) return;
+                        const ds = localDateStr(new Date(t.createdAt));
+                        bucket[ds] = (bucket[ds] || 0) + t.amount;
                     });
                 }
             } catch (e) { }
+            return bucket;
+        }
 
-            // Build 7 day slots for the current week (Sun to Sat)
-            const weekDays = [];
-            for (let i = 0; i <= 6; i++) {
-                const d = new Date(now);
-                d.setHours(0, 0, 0, 0);
-                // offset from current day index: i - todayDow gives day offset
-                d.setDate(d.getDate() - (todayDow - i));
-                const isoDate = d.toISOString().split('T')[0];
-                const dayLabel = DAYS[i];
-                const dateLabel = (d.getDate()).toString().padStart(2, '0') + '/' + (d.getMonth() + 1).toString().padStart(2, '0');
+        function buildWeekSlots(bucket) {
+            const now = new Date();
+            const todayDow = now.getDay();
+            return DAYS.map((dayName, i) => {
+                const slotDate = new Date(now);
+                slotDate.setHours(0, 0, 0, 0);
+                slotDate.setDate(slotDate.getDate() - (todayDow - i));
+                const ds = localDateStr(slotDate);
                 const isFuture = i > todayDow;
-                const amount = txnsByDate[isoDate] || 0;
-                weekDays.push({ dayLabel, dateLabel, amount, isFuture, isToday: i === todayDow });
-            }
+                const isToday = i === todayDow;
+                const dateLabel = String(slotDate.getDate()).padStart(2, '0') + '/' +
+                    String(slotDate.getMonth() + 1).padStart(2, '0');
+                return {
+                    dayName, dateLabel, ds, isFuture, isToday, i,
+                    amount: isFuture ? 0 : (bucket[ds] || 0)
+                };
+            });
+        }
 
-            const maxAmount = Math.max(...weekDays.map(d => d.amount), 1);
+        function fmtBarVal(n) {
+            if (!n) return '';
+            if (n >= 1000000) return 'R' + (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+            if (n >= 1000) return 'R' + (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+            return 'R' + Math.round(n);
+        }
 
-            // Render
-            container.innerHTML = weekDays.map(d => {
-                const heightPx = Math.max((d.amount / maxAmount) * 56, 2);
-                const opacity = d.isFuture ? '0.25' : '1';
-                let valLabel = '';
-                if (d.amount > 0) {
-                    if (d.amount >= 1000000) valLabel = 'R' + (d.amount / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
-                    else if (d.amount >= 1000) valLabel = 'R' + (d.amount / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
-                    else valLabel = 'R' + Math.round(d.amount);
+        function initHeroChart() {
+            const container = document.getElementById('hero-bar-chart');
+            if (!container) return;
+            const slots = buildWeekSlots(getTxnBucket());
+            const maxAmount = Math.max(...slots.map(s => s.amount), 1);
+
+            container.innerHTML = slots.map(s => `
+                <div class="mock-bar-group" id="hbc-group-${s.i}" style="opacity:${s.isFuture ? 0.25 : 1}">
+                    <div id="hbc-val-${s.i}" style="font-size:7px;color:var(--gray-500);font-family:var(--font-mono);height:10px;display:flex;align-items:flex-end;justify-content:center">${fmtBarVal(s.amount)}</div>
+                    <div id="hbc-bar-${s.i}" style="width:100%;height:${s.isFuture ? 2 : (s.amount > 0 ? Math.max((s.amount / maxAmount) * 56, 3) : 2)}px;background:${s.isToday ? 'var(--black)' : (s.isFuture ? 'var(--gray-200)' : 'var(--gray-400)')};border-radius:2px;transition:height .45s cubic-bezier(.4,0,.2,1)"></div>
+                    <div class="mock-bar-label" style="font-size:7px;text-align:center;line-height:1.4">
+                        <div style="font-weight:${s.isToday ? 700 : 400}">${s.dayName}</div>
+                        <div style="color:var(--gray-300)">${s.dateLabel}</div>
+                    </div>
+                </div>`).join('');
+        }
+
+        function updateHeroChart() {
+            const slots = buildWeekSlots(getTxnBucket());
+            const maxAmount = Math.max(...slots.map(s => s.amount), 1);
+            slots.forEach(s => {
+                const barEl = document.getElementById(`hbc-bar-${s.i}`);
+                const valEl = document.getElementById(`hbc-val-${s.i}`);
+                if (!barEl || !valEl) return;
+                barEl.style.height = (s.isFuture ? 2 : (s.amount > 0 ? Math.max((s.amount / maxAmount) * 56, 3) : 2)) + 'px';
+                valEl.textContent = fmtBarVal(s.amount);
+            });
+        }
+
+        // ── ACTIVE SECTION SCROLL-SPY ──
+        function setupScrollSpy() {
+            const sections = [
+                { id: 'platform', navId: 'nav-platform' },
+                { id: 'features', navId: 'nav-features' },
+                { id: 'pricing', navId: 'nav-pricing' },
+                { id: 'contact', navId: 'nav-contact' },
+            ];
+            function updateActiveNav() {
+                const scrollY = window.scrollY + 100;
+                let active = null;
+                for (const s of sections) {
+                    const el = document.getElementById(s.id);
+                    if (el && el.offsetTop <= scrollY) active = s.navId;
                 }
-                return `
-                    <div class="mock-bar-group" style="opacity:${opacity}">
-                        <div style="font-size:7px;color:var(--gray-500);font-family:var(--font-mono);height:10px;display:flex;align-items:flex-end;justify-content:center">${valLabel}</div>
-                        <div class="mock-bar" style="height:${heightPx}px;background:${d.isToday ? 'var(--black)' : 'var(--gray-300)'};border-radius:2px"></div>
-                        <div class="mock-bar-label" style="font-size:7px;text-align:center">
-                            <div>${d.dayLabel}</div>
-                            <div style="color:var(--gray-300)">${d.dateLabel}</div>
-                        </div>
-                    </div>`;
-            }).join('');
-        })();
+                sections.forEach(s => {
+                    const nav = document.getElementById(s.navId);
+                    if (nav) nav.classList.toggle('active', s.navId === active);
+                });
+            }
+            window.addEventListener('scroll', updateActiveNav, { passive: true });
+            updateActiveNav();
+        }
+
+        // ── BOOTSTRAP ON DOM READY ──
+        document.addEventListener('DOMContentLoaded', () => {
+            initHeroChart();
+            setupScrollSpy();
+
+            // Poll localStorage every 2s — animate bars when new transactions appear
+            let lastSnapshot = localStorage.getItem(STORAGE_KEY);
+            setInterval(() => {
+                const current = localStorage.getItem(STORAGE_KEY);
+                if (current !== lastSnapshot) {
+                    lastSnapshot = current;
+                    updateHeroChart();
+                }
+            }, 2000);
+        });
     </script>
 
 </body>

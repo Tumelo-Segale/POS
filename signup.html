@@ -1384,7 +1384,7 @@
             width: 100%;
             background: var(--black);
             border-radius: var(--radius);
-            transition: height .4s ease;
+            transition: height .45s cubic-bezier(.4, 0, .2, 1);
             min-height: 2px
         }
 
@@ -1704,6 +1704,17 @@
     <div id="auth-container">
         <!-- LOGIN -->
         <div id="login-page" class="auth-card">
+            <div style="margin-bottom:16px">
+                <a href="index.html"
+                    style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--gray-500);text-decoration:none;font-family:var(--font-mono);font-weight:600;letter-spacing:.04em;transition:color .15s"
+                    onmouseover="this.style.color='var(--black)'" onmouseout="this.style.color='var(--gray-500)'">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                        <polyline points="15 18 9 12 15 6" />
+                    </svg>
+                    Back to Home
+                </a>
+            </div>
             <div class="auth-logo">
                 <div class="auth-logo-icon"><svg width="26" height="26" fill="none" stroke="white" stroke-width="2"
                         stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
@@ -1740,6 +1751,17 @@
 
         <!-- REGISTER STEP 1 -->
         <div id="register-page" class="auth-card hidden">
+            <div style="margin-bottom:16px">
+                <a href="index.html"
+                    style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--gray-500);text-decoration:none;font-family:var(--font-mono);font-weight:600;letter-spacing:.04em;transition:color .15s"
+                    onmouseover="this.style.color='var(--black)'" onmouseout="this.style.color='var(--gray-500)'">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                        <polyline points="15 18 9 12 15 6" />
+                    </svg>
+                    Back to Home
+                </a>
+            </div>
             <div class="auth-logo">
                 <div class="auth-logo-icon"><svg width="26" height="26" fill="none" stroke="white" stroke-width="2"
                         stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
@@ -1776,6 +1798,17 @@
 
         <!-- REGISTER STEP 2 – Plan -->
         <div id="register-plan-page" class="auth-card hidden">
+            <div style="margin-bottom:16px">
+                <a href="index.html"
+                    style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--gray-500);text-decoration:none;font-family:var(--font-mono);font-weight:600;letter-spacing:.04em;transition:color .15s"
+                    onmouseover="this.style.color='var(--black)'" onmouseout="this.style.color='var(--gray-500)'">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                        <polyline points="15 18 9 12 15 6" />
+                    </svg>
+                    Back to Home
+                </a>
+            </div>
             <div class="auth-logo">
                 <h1>Choose Your Plan</h1>
                 <p>Step 2 of 2 — Select the plan that fits your business</p>
@@ -2302,6 +2335,7 @@
             log: `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>`,
             paystack: `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>`,
             read: `<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`,
+            receipt: `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16l3-2 3 2 3-2 3 2V4a2 2 0 0 0-2-2z"/><line x1="9" y1="7" x2="15" y2="7"/><line x1="9" y1="11" x2="15" y2="11"/><line x1="9" y1="15" x2="12" y2="15"/></svg>`,
         };
 
         // ============================================================
@@ -2627,6 +2661,7 @@
                 { id: 'cashiers', label: 'Cashiers', icon: 'users' },
                 { id: 'pos', label: 'POS Mode', icon: 'cart' },
                 { id: 'transactions', label: 'Transactions', icon: 'history' },
+                { id: 'receipts', label: 'Receipts', icon: 'receipt' },
                 { id: 'subscriptions', label: 'Subscription', icon: 'credit' },
                 { id: 'contact', label: 'Contact Support', icon: 'mail' },
                 { id: 'settings', label: 'Settings', icon: 'settings' },
@@ -2754,6 +2789,7 @@
                 if (tab === 'cashiers') return renderCashiers(area);
                 if (tab === 'pos') return renderPOS(area);
                 if (tab === 'transactions') return renderTransactions(area);
+                if (tab === 'receipts') return renderReceipts(area);
                 if (tab === 'subscriptions') return renderSubscriptions(area);
                 if (tab === 'contact') return renderContact(area);
                 if (tab === 'settings') return renderSettings(area);
@@ -2983,62 +3019,134 @@
         }
 
         // ============================================================
-        // ADMIN DASHBOARD
+        // ADMIN DASHBOARD — Weekly Sales Chart
         // ============================================================
+        //
+        // HOW THE CHART WORKS:
+        //   • The chart always shows the CURRENT calendar week: Sun 00:00 → Sat 23:59.
+        //   • At Sunday 00:00:00 the week resets — all bars start at zero for the new week.
+        //   • Each bar slot is keyed to an EXACT calendar date string (YYYY-MM-DD).
+        //     A transaction is counted ONLY on the date it was recorded — never another day.
+        //   • Future day slots (after today) always show 0 and are rendered greyed-out.
+        //   • Today's bar grows live as each new transaction is processed.
+        //   • The scale (max height) is recalculated fresh every update so bars are
+        //     always proportional to the current week's data.
 
-        // Shared helper: compute week data from a transactions array
+        /**
+         * Returns the YYYY-MM-DD string for midnight local time on a given Date.
+         * Uses local date parts to avoid UTC-offset edge cases near midnight.
+         */
+        function localDateStr(d) {
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+
+        /**
+         * Build the 7-slot week array for the current calendar week (Sun→Sat).
+         * Each slot contains:
+         *   ds        — the exact YYYY-MM-DD local date string for that slot
+         *   day       — short day name ('Sun', 'Mon', …)
+         *   dateLabel — display label ('DD/MM')
+         *   isToday   — true only for the current day slot
+         *   isFuture  — true for slots after today (always amount = 0)
+         *   amount    — sum of transaction amounts whose local date === ds
+         *
+         * Transactions are matched by slicing their ISO createdAt to 10 chars
+         * AND comparing against the LOCAL date of the slot. Because createdAt is
+         * stored as UTC ISO string, we re-parse each transaction date in LOCAL time
+         * to guarantee correctness around midnight.
+         */
         function computeWeekData(txns) {
-            const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
             const now = new Date();
-            const todayDow = now.getDay();
-            return days.map((day, i) => {
-                const d = new Date();
-                d.setHours(0, 0, 0, 0);
-                d.setDate(d.getDate() - (todayDow - i));
-                const ds = d.toISOString().split('T')[0];
+            const todayDow = now.getDay(); // 0 = Sunday
+
+            // Pre-bucket transactions by their LOCAL date string for O(1) lookup
+            const bucket = {};
+            txns.forEach(t => {
+                if (!t.createdAt || !t.amount) return;
+                // Parse ISO → local date
+                const txDate = new Date(t.createdAt);
+                const txDs = localDateStr(txDate);
+                bucket[txDs] = (bucket[txDs] || 0) + t.amount;
+            });
+
+            return DAY_NAMES.map((dayName, i) => {
+                // Build the exact calendar date for slot i of this week
+                const slotDate = new Date(now);
+                slotDate.setHours(0, 0, 0, 0);
+                slotDate.setDate(slotDate.getDate() - (todayDow - i));
+
+                const ds = localDateStr(slotDate);
                 const isFuture = i > todayDow;
                 const isToday = i === todayDow;
-                const dateLabel = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
-                const amount = isFuture ? 0 : txns.filter(t => t.createdAt.startsWith(ds)).reduce((a, t) => a + t.amount, 0);
-                return { day, dateLabel, amount, isFuture, isToday };
+                const dateLabel = String(slotDate.getDate()).padStart(2, '0') + '/' +
+                    String(slotDate.getMonth() + 1).padStart(2, '0');
+
+                // Amount is ZERO for future slots — bucket lookup otherwise
+                const amount = isFuture ? 0 : (bucket[ds] || 0);
+
+                return { dayName, dateLabel, ds, amount, isFuture, isToday };
             });
         }
 
         function fmtBar(n) {
-            if (n === 0) return '';
+            if (!n || n === 0) return '';
             if (n >= 1000000) return 'R' + (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
             if (n >= 1000) return 'R' + (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
             return 'R' + Math.round(n);
         }
 
-        // Live-update only the bar chart and stat cards — no full re-render
+        /**
+         * Live-updates the bar heights and stat card values in-place.
+         * Called immediately after every transaction AND by the BroadcastChannel /
+         * polling interval. Performs NO DOM re-render — only style mutations.
+         */
         function updateDashboardChart() {
-            if (activeTab !== 'dashboard' || !currentUser || currentUser.role !== 'admin') return;
+            if (!currentUser || currentUser.role !== 'admin') return;
+            if (activeTab !== 'dashboard') return;
+
             const store = getStore();
             const bizId = currentUser.businessId;
             const txns = store.transactions.filter(t => t.businessId === bizId);
             const now = new Date();
-            const today = now.toISOString().split('T')[0];
+            const today = localDateStr(now);
 
-            // Update stat cards
-            const todaySales = txns.filter(t => t.createdAt.startsWith(today)).reduce((a, t) => a + t.amount, 0);
-            const monthlySales = txns.filter(t => { const d = new Date(t.createdAt); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); }).reduce((a, t) => a + t.amount, 0);
-            const yearlySales = txns.filter(t => new Date(t.createdAt).getFullYear() === now.getFullYear()).reduce((a, t) => a + t.amount, 0);
-            const el = (id) => document.getElementById(id);
-            if (el('dash-today')) el('dash-today').textContent = formatCurrency(todaySales);
-            if (el('dash-monthly')) el('dash-monthly').textContent = formatCurrency(monthlySales);
-            if (el('dash-yearly')) el('dash-yearly').textContent = formatCurrency(yearlySales);
-            if (el('dash-count')) el('dash-count').textContent = txns.length;
+            // ── Stat cards ──────────────────────────────────────────────
+            const todaySales = txns.filter(t => localDateStr(new Date(t.createdAt)) === today)
+                .reduce((a, t) => a + t.amount, 0);
+            const monthlySales = txns.filter(t => {
+                const d = new Date(t.createdAt);
+                return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+            }).reduce((a, t) => a + t.amount, 0);
+            const yearlySales = txns.filter(t => new Date(t.createdAt).getFullYear() === now.getFullYear())
+                .reduce((a, t) => a + t.amount, 0);
 
-            // Update bars in-place (animate height transitions via CSS)
+            const $ = id => document.getElementById(id);
+            if ($('dash-today')) $('dash-today').textContent = formatCurrency(todaySales);
+            if ($('dash-monthly')) $('dash-monthly').textContent = formatCurrency(monthlySales);
+            if ($('dash-yearly')) $('dash-yearly').textContent = formatCurrency(yearlySales);
+            if ($('dash-count')) $('dash-count').textContent = txns.length;
+
+            // ── Bar chart ────────────────────────────────────────────────
             const weekData = computeWeekData(txns);
             const maxAmount = Math.max(...weekData.map(d => d.amount), 1);
+
             weekData.forEach((d, i) => {
-                const barEl = el(`dash-bar-${i}`);
-                const valEl = el(`dash-bar-val-${i}`);
+                const barEl = $(`dash-bar-${i}`);
+                const valEl = $(`dash-bar-val-${i}`);
                 if (!barEl || !valEl) return;
-                const newH = d.isFuture ? 2 : Math.max((d.amount / maxAmount) * 120, 2);
-                barEl.style.height = newH + 'px';
+
+                if (d.isFuture) {
+                    barEl.style.height = '2px';
+                    valEl.textContent = '';
+                    return;
+                }
+                // Height proportional to this week's max — grows as today's amount grows
+                const h = d.amount > 0 ? Math.max((d.amount / maxAmount) * 120, 4) : 2;
+                barEl.style.height = h + 'px';
                 valEl.textContent = fmtBar(d.amount);
             });
         }
@@ -3047,20 +3155,34 @@
             const store = getStore();
             const bizId = currentUser.businessId;
             const txns = store.transactions.filter(t => t.businessId === bizId);
-            const today = new Date().toISOString().split('T')[0];
             const now = new Date();
-            const todaySales = txns.filter(t => t.createdAt.startsWith(today)).reduce((a, t) => a + t.amount, 0);
-            const monthlySales = txns.filter(t => { const d = new Date(t.createdAt); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); }).reduce((a, t) => a + t.amount, 0);
-            const yearlySales = txns.filter(t => new Date(t.createdAt).getFullYear() === now.getFullYear()).reduce((a, t) => a + t.amount, 0);
+            const today = localDateStr(now);
+
+            const todaySales = txns.filter(t => localDateStr(new Date(t.createdAt)) === today)
+                .reduce((a, t) => a + t.amount, 0);
+            const monthlySales = txns.filter(t => {
+                const d = new Date(t.createdAt);
+                return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+            }).reduce((a, t) => a + t.amount, 0);
+            const yearlySales = txns.filter(t => new Date(t.createdAt).getFullYear() === now.getFullYear())
+                .reduce((a, t) => a + t.amount, 0);
+
             const weekData = computeWeekData(txns);
             const maxAmount = Math.max(...weekData.map(d => d.amount), 1);
 
             const st = getSubStatus(bizId);
-            const expiringSoon = st && st.active && !st.inGrace && typeof st.daysLeft === 'number' && st.daysLeft <= 3 && st.daysLeft > 0;
-            const subBanner = st && st.inGrace ? `<div class="alert alert-orange mb-20">${Icon.alert} Grace period: ${st.graceLeft} day(s) remaining. Renew your subscription to avoid suspension.</div>` :
-                (st && st.status === 'expired' ? `<div class="alert alert-red mb-20">${Icon.alert} Subscription expired. Functionality is suspended.</div>` :
-                    (st && st.status === 'cancelled' && st.active && st.daysLeft <= 3 ? `<div class="alert alert-red mb-20">${Icon.alert} Your cancelled subscription ends in <strong>${st.daysLeft} day(s)</strong>. Renew now to avoid losing access.</div>` :
-                        (expiringSoon ? `<div class="alert alert-accent mb-20">${Icon.alert} Subscription expires in <strong>${st.daysLeft} day(s)</strong>. <a href="#" onclick="navigate('subscriptions');return false;" style="color:inherit;font-weight:700">Renew now</a> to avoid interruption.</div>` : '')));
+            const expiringSoon = st && st.active && !st.inGrace &&
+                typeof st.daysLeft === 'number' && st.daysLeft <= 3 && st.daysLeft > 0;
+            const subBanner =
+                (st && st.inGrace)
+                    ? `<div class="alert alert-orange mb-20">${Icon.alert} Grace period: ${st.graceLeft} day(s) remaining. Renew your subscription to avoid suspension.</div>`
+                    : (st && st.status === 'expired')
+                        ? `<div class="alert alert-red mb-20">${Icon.alert} Subscription expired. Functionality is suspended.</div>`
+                        : (st && st.status === 'cancelled' && st.active && st.daysLeft <= 3)
+                            ? `<div class="alert alert-red mb-20">${Icon.alert} Your cancelled subscription ends in <strong>${st.daysLeft} day(s)</strong>. Renew now to avoid losing access.</div>`
+                            : expiringSoon
+                                ? `<div class="alert alert-accent mb-20">${Icon.alert} Subscription expires in <strong>${st.daysLeft} day(s)</strong>. <a href="#" onclick="navigate('subscriptions');return false;" style="color:inherit;font-weight:700">Renew now</a> to avoid interruption.</div>`
+                                : '';
 
             area.innerHTML = `
     ${subBanner}
@@ -3071,19 +3193,63 @@
       <div class="stat-card"><div class="stat-icon">${Icon.cart}</div><div><div class="stat-label">Total Transactions</div><div class="stat-value" id="dash-count">${txns.length}</div></div></div>
     </div>
     <div class="card">
-      <div class="card-header"><span class="card-title">Weekly Sales Overview</span></div>
+      <div class="card-header">
+        <div>
+          <span class="card-title">Weekly Sales Overview</span>
+          <div class="card-subtitle">Sun – Sat · resets each Sunday at midnight</div>
+        </div>
+        <span id="dash-week-label" style="font-size:11px;color:var(--gray-400);font-family:var(--font-mono)"></span>
+      </div>
       <div class="card-body">
-        <div class="bar-chart">
+        <div class="bar-chart" id="dash-bar-chart">
           ${weekData.map((d, i) => `
-            <div class="bar-group" style="opacity:${d.isFuture ? 0.25 : 1}">
-              <div class="bar-val" id="dash-bar-val-${i}">${fmtBar(d.amount)}</div>
-              <div class="bar" id="dash-bar-${i}" style="height:${d.isFuture ? 2 : Math.max((d.amount / maxAmount) * 120, 2)}px;background:${d.isToday ? 'var(--black)' : 'var(--gray-300)'}"></div>
-              <div class="bar-label" style="line-height:1.3">${d.day}<br><span style="font-size:8px;color:var(--gray-300)">${d.dateLabel}</span></div>
+            <div class="bar-group" style="opacity:${d.isFuture ? 0.3 : 1}">
+              <div class="bar-val" id="dash-bar-val-${i}" style="font-size:9px;height:16px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:2px">${fmtBar(d.amount)}</div>
+              <div class="bar" id="dash-bar-${i}"
+                style="height:${d.isFuture ? 2 : (d.amount > 0 ? Math.max((d.amount / maxAmount) * 120, 4) : 2)}px;
+                       background:${d.isToday ? 'var(--black)' : (d.isFuture ? 'var(--gray-200)' : 'var(--gray-400)')};
+                       transition:height .45s cubic-bezier(.4,0,.2,1)"></div>
+              <div class="bar-label" style="line-height:1.4;padding-top:4px">
+                <div style="font-weight:${d.isToday ? '700' : '400'};color:${d.isToday ? 'var(--black)' : 'inherit'}">${d.dayName}</div>
+                <div style="font-size:8px;color:var(--gray-300)">${d.dateLabel}</div>
+              </div>
             </div>`).join('')}
         </div>
       </div>
-    </div>
-  `;
+    </div>`;
+
+            // Set the week label (e.g. "18 Apr – 24 Apr 2025")
+            const sunDate = weekData[0];
+            const satDate = weekData[6];
+            const fmt = (ds) => {
+                const [y, m, day] = ds.split('-');
+                const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                return `${parseInt(day)} ${months[parseInt(m) - 1]}`;
+            };
+            const weekLabel = document.getElementById('dash-week-label');
+            if (weekLabel) weekLabel.textContent = `${fmt(sunDate.ds)} – ${fmt(satDate.ds)} ${sunDate.ds.slice(0, 4)}`;
+
+            // Schedule an automatic re-render exactly at the next Sunday midnight
+            // so the chart resets live if the dashboard is left open overnight
+            scheduleWeekReset();
+        }
+
+        // ── Week reset scheduler ────────────────────────────────────────
+        let _weekResetTimer = null;
+        function scheduleWeekReset() {
+            if (_weekResetTimer) clearTimeout(_weekResetTimer);
+            const now = new Date();
+            // Next Sunday 00:00:00 local time
+            const nextSunday = new Date(now);
+            nextSunday.setDate(now.getDate() + (7 - now.getDay()) % 7 || 7);
+            nextSunday.setHours(0, 0, 0, 0);
+            const msUntilReset = nextSunday - now;
+            _weekResetTimer = setTimeout(() => {
+                // Re-render dashboard to show fresh week
+                if (activeTab === 'dashboard' && currentUser && currentUser.role === 'admin') {
+                    renderAdminDashboard(document.getElementById('content-area'));
+                }
+            }, msUntilReset);
         }
 
         // ============================================================
@@ -3741,7 +3907,7 @@
             };
             updateStore(d => ({ ...d, transactions: [...d.transactions, txn] }));
             addAuditLog(`Processed ${type} transaction`, formatCurrency(total));
-            // Live-update the dashboard chart if admin is viewing it in the same tab
+            // Immediately grow the dashboard bar for today — no wait for broadcast/poll
             updateDashboardChart();
             posCart = [];
             const searchInput = document.getElementById('pos-search-input');
@@ -3821,6 +3987,118 @@
         function setTxnFilter(period) {
             txnFilterPeriod = period;
             renderTransactions(document.getElementById('content-area'));
+        }
+
+        // ============================================================
+        // RECEIPTS (admin)
+        // ============================================================
+        let receiptSearch = '';
+
+        function renderReceipts(area) {
+            const store = getStore();
+            const allTxns = store.transactions
+                .filter(t => t.businessId === currentUser.businessId && t.receiptId)
+                .slice().reverse(); // newest first
+
+            area.innerHTML = `
+    <div class="page-header">
+      <h2 class="page-title">Receipts</h2>
+      <div class="search-box">
+        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--gray-400)"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input id="receipt-search" type="text" placeholder="Search receipt ID or cashier..." style="padding-left:30px;height:34px" oninput="filterReceipts()" value="${sanitize(receiptSearch)}"/>
+      </div>
+    </div>
+    <div class="card">
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Receipt ID</th>
+              <th>Date & Time</th>
+              <th>Cashier</th>
+              <th>Items</th>
+              <th>Type</th>
+              <th>Discount</th>
+              <th>Total</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="receipts-tbody">
+            ${renderReceiptRows(allTxns)}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+        }
+
+        function renderReceiptRows(txns) {
+            if (txns.length === 0) return `<tr><td colspan="8"><div class="empty-state">No receipts found.</div></td></tr>`;
+            return txns.map(t => `
+        <tr>
+          <td><span class="text-mono" style="font-size:11px;font-weight:700;color:var(--black)">${t.receiptId}</span></td>
+          <td class="text-muted">${formatDate(t.createdAt)}</td>
+          <td><strong>${sanitize(t.cashierName || '—')}</strong></td>
+          <td class="text-muted" style="font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${sanitize(t.itemsSummary || '')}">${sanitize(t.itemsSummary || '—')}</td>
+          <td><span class="badge ${t.type === 'cash' ? 'badge-green' : 'badge-blue'}">${t.type}</span></td>
+          <td class="text-mono" style="color:var(--green)">${t.discount > 0 ? '−' + formatCurrency(t.discount) : '—'}</td>
+          <td><strong class="text-mono">${formatCurrency(t.amount)}</strong></td>
+          <td><button class="btn btn-sm btn-outline" onclick="viewReceiptDetail('${t.id}')">${Icon.receipt} View</button></td>
+        </tr>`).join('');
+        }
+
+        function filterReceipts() {
+            receiptSearch = (document.getElementById('receipt-search')?.value || '').toLowerCase();
+            const store = getStore();
+            const allTxns = store.transactions
+                .filter(t => t.businessId === currentUser.businessId && t.receiptId)
+                .slice().reverse();
+            const filtered = receiptSearch
+                ? allTxns.filter(t =>
+                    (t.receiptId || '').toLowerCase().includes(receiptSearch) ||
+                    (t.cashierName || '').toLowerCase().includes(receiptSearch) ||
+                    (t.itemsSummary || '').toLowerCase().includes(receiptSearch))
+                : allTxns;
+            const tbody = document.getElementById('receipts-tbody');
+            if (tbody) tbody.innerHTML = renderReceiptRows(filtered);
+        }
+
+        function viewReceiptDetail(txnId) {
+            const store = getStore();
+            const t = store.transactions.find(tx => tx.id === txnId);
+            if (!t) return;
+            const biz = store.businesses.find(b => b.id === currentUser.businessId);
+            openModal(`Receipt — ${t.receiptId}`, `
+      <div style="font-family:var(--font-mono);padding:8px 0">
+        <div style="text-align:center;margin-bottom:20px;padding-bottom:16px;border-bottom:2px dashed var(--gray-200)">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--gray-400);margin-bottom:4px">${sanitize(biz?.name || 'SaleStation')}</div>
+          <div style="font-size:20px;font-weight:900;letter-spacing:.04em">${t.receiptId}</div>
+          <div style="font-size:11px;color:var(--gray-500);margin-top:4px">${formatDate(t.createdAt)}</div>
+        </div>
+        <div style="margin-bottom:16px">
+          ${(t.itemsSummary || '').split(', ').map(line => {
+                const match = line.match(/^(.+)\s×(\d+)$/);
+                if (!match) return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--gray-50);font-size:13px"><span>${sanitize(line)}</span></div>`;
+                return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--gray-50);font-size:13px"><span>${sanitize(match[1])}</span><span style="color:var(--gray-500)">×${match[2]}</span></div>`;
+            }).join('')}
+        </div>
+        ${t.discount > 0 ? `<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--green);padding:4px 0">
+          <span>Discount</span><span>−${formatCurrency(t.discount)}</span>
+        </div>` : ''}
+        <div style="display:flex;justify-content:space-between;font-size:18px;font-weight:900;padding:12px 0;border-top:2px solid var(--black);margin-top:8px">
+          <span>TOTAL</span><span>${formatCurrency(t.amount)}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--gray-500);margin-top:8px">
+          <span>Payment</span><span style="font-weight:700;text-transform:uppercase">${t.type === 'cash' ? 'Cash' : 'Card'}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--gray-500);margin-top:4px">
+          <span>Served by</span><span>${sanitize(t.cashierName || '—')}</span>
+        </div>
+        <div style="text-align:center;margin-top:20px;padding-top:16px;border-top:1px dashed var(--gray-200);font-size:11px;color:var(--gray-400)">
+          Thank you for your purchase!
+        </div>
+      </div>
+      <button class="btn btn-outline btn-full" style="margin-top:16px" onclick="closeModal()">Close</button>
+    `);
         }
 
         function openStatementsModal() {

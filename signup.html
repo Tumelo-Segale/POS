@@ -3131,17 +3131,24 @@
             weekData.forEach((d, i) => {
                 const barEl = $(`dash-bar-${i}`);
                 const valEl = $(`dash-bar-val-${i}`);
+                const groupEl = $(`dash-bar-${i}`)?.closest('.bar-group');
                 if (!barEl || !valEl) return;
 
                 if (d.isFuture) {
                     barEl.style.height = '2px';
+                    barEl.style.background = 'var(--gray-200)';
                     valEl.textContent = '';
+                    if (groupEl) groupEl.style.opacity = '0.3';
                     return;
                 }
-                // Height proportional to this week's max — grows as today's amount grows
+
+                // Past days: grey bars showing locked historical total
+                // Today: black bar that grows with each new transaction
                 const h = d.amount > 0 ? Math.max((d.amount / maxAmount) * 120, 4) : 2;
                 barEl.style.height = h + 'px';
+                barEl.style.background = d.isToday ? 'var(--black)' : 'var(--gray-400)';
                 valEl.textContent = fmtBar(d.amount);
+                if (groupEl) groupEl.style.opacity = '1';
             });
         }
 

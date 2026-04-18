@@ -381,13 +381,13 @@
             flex-wrap: wrap;
         }
 
-        /* DASHBOARD MOCKUP in hero */
+        /* DASHBOARD SCREENSHOT in hero */
         .hero-mockup {
             margin-top: 56px;
             max-width: 960px;
             margin-left: auto;
             margin-right: auto;
-            border-radius: var(--radius);
+            border-radius: 6px;
             border: 1px solid var(--gray-200);
             box-shadow: var(--shadow-lg);
             background: var(--white);
@@ -408,158 +408,12 @@
             width: 10px;
             height: 10px;
             border-radius: 50%;
-            background: var(--gray-300);
         }
 
-        /* Inline dashboard preview */
-        .mockup-body {
-            display: flex;
-            height: 340px;
-            overflow: hidden;
-            background: var(--gray-50);
-            font-size: 12px;
-        }
-
-        .mockup-sidebar {
-            width: 160px;
-            min-width: 160px;
-            background: var(--black);
-            display: flex;
-            flex-direction: column;
-            padding: 12px 8px;
-        }
-
-        .mock-sidebar-logo {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            padding: 6px 8px 14px;
-            border-bottom: 1px solid rgba(255, 255, 255, .08);
-            margin-bottom: 10px;
-        }
-
-        .mock-sidebar-logo-icon {
-            width: 20px;
-            height: 20px;
-            background: var(--white);
-            border-radius: 2px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .mock-sidebar-logo-text {
-            font-family: var(--font-mono);
-            font-size: 10px;
-            font-weight: 700;
-            color: var(--white);
-        }
-
-        .mock-nav-item {
-            display: flex;
-            align-items: center;
-            gap: 7px;
-            padding: 7px 8px;
-            border-radius: 2px;
-            color: rgba(255, 255, 255, .4);
-            font-size: 11px;
-            margin-bottom: 2px;
-        }
-
-        .mock-nav-item.active {
-            background: var(--white);
-            color: var(--black);
-            font-weight: 600;
-        }
-
-        .mock-nav-dot {
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background: currentColor;
-            flex-shrink: 0;
-        }
-
-        .mockup-content {
-            flex: 1;
-            padding: 16px;
-            overflow: hidden;
-        }
-
-        .mock-stats {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 8px;
-            margin-bottom: 12px;
-        }
-
-        @media (max-width: 600px) {
-            .mock-stats {
-                grid-template-columns: repeat(2, 1fr);
-            }
-        }
-
-        .mock-stat {
-            background: var(--white);
-            border: 1px solid var(--gray-100);
-            border-radius: 2px;
-            padding: 10px 12px;
-        }
-
-        .mock-stat-label {
-            font-size: 9px;
-            color: var(--gray-400);
-            text-transform: uppercase;
-            letter-spacing: .06em;
-            font-family: var(--font-mono);
-        }
-
-        .mock-stat-value {
-            font-size: 15px;
-            font-weight: 800;
-            font-family: var(--font-mono);
-            margin-top: 2px;
-        }
-
-        .mock-chart-card {
-            background: var(--white);
-            border: 1px solid var(--gray-100);
-            border-radius: 2px;
-            padding: 12px;
-        }
-
-        .mock-chart-title {
-            font-size: 10px;
-            font-weight: 700;
-            font-family: var(--font-mono);
-            margin-bottom: 10px;
-        }
-
-        .mock-bar-chart {
-            display: flex;
-            align-items: flex-end;
-            gap: 6px;
-            height: 80px;
-        }
-
-        .mock-bar-group {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 3px;
-        }
-
-        .mock-bar {
+        .hero-mockup img {
             width: 100%;
-            background: var(--black);
-            border-radius: 2px;
-        }
-
-        .mock-bar-label {
-            font-size: 8px;
-            color: var(--gray-400);
-            font-family: var(--font-mono);
+            display: block;
+            object-fit: cover;
         }
 
         /* ── OVERVIEW ── */
@@ -792,6 +646,7 @@
             font-size: 13px;
             color: var(--gray-600);
             padding: 4px 0;
+            border-bottom: 1px solid var(--gray-100);
         }
 
         .plan-features li:last-child {
@@ -1078,70 +933,14 @@
                 <a href="#platform" class="btn btn-outline btn-lg hide-mobile">Explore Platform</a>
             </div>
 
-            <!-- ANIMATED DASHBOARD MOCKUP -->
+            <!-- DASHBOARD SCREENSHOT -->
             <div class="hero-mockup">
                 <div class="mockup-header">
                     <div class="mockup-dot" style="background:#ff5f56"></div>
                     <div class="mockup-dot" style="background:#ffbd2e"></div>
                     <div class="mockup-dot" style="background:#27c93f"></div>
                 </div>
-                <div class="mockup-body">
-                    <div class="mockup-sidebar">
-                        <div class="mock-sidebar-logo">
-                            <div class="mock-sidebar-logo-icon">
-                                <svg width="10" height="10" fill="none" stroke="#0a0a0a" stroke-width="2"
-                                    viewBox="0 0 24 24">
-                                    <rect x="2" y="5" width="20" height="14" rx="2" />
-                                    <line x1="2" y1="10" x2="22" y2="10" />
-                                </svg>
-                            </div>
-                            <span class="mock-sidebar-logo-text">SaleStation</span>
-                        </div>
-                        <div class="mock-nav-item active">
-                            <div class="mock-nav-dot"></div> Dashboard
-                        </div>
-                        <div class="mock-nav-item">
-                            <div class="mock-nav-dot"></div> POS
-                        </div>
-                        <div class="mock-nav-item">
-                            <div class="mock-nav-dot"></div> Inventory
-                        </div>
-                        <div class="mock-nav-item">
-                            <div class="mock-nav-dot"></div> Cashiers
-                        </div>
-                        <div class="mock-nav-item">
-                            <div class="mock-nav-dot"></div> Transactions
-                        </div>
-                    </div>
-                    <div class="mockup-content">
-                        <div style="font-family:var(--font-mono);font-size:13px;font-weight:700;margin-bottom:12px">
-                            Dashboard</div>
-                        <div class="mock-stats">
-                            <div class="mock-stat">
-                                <div class="mock-stat-label">Today's Sales</div>
-                                <div class="mock-stat-value">R1,240</div>
-                            </div>
-                            <div class="mock-stat">
-                                <div class="mock-stat-label">Monthly</div>
-                                <div class="mock-stat-value">R18.4k</div>
-                            </div>
-                            <div class="mock-stat">
-                                <div class="mock-stat-label">Yearly</div>
-                                <div class="mock-stat-value">R142k</div>
-                            </div>
-                            <div class="mock-stat">
-                                <div class="mock-stat-label">Transactions</div>
-                                <div class="mock-stat-value">487</div>
-                            </div>
-                        </div>
-                        <div class="mock-chart-card">
-                            <div class="mock-chart-title">Weekly Sales Overview</div>
-                            <div class="mock-bar-chart" id="hero-bar-chart">
-                                <!-- filled by JS -->
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <img src="admin-dashboard-screenshot.png" alt="SaleStation Admin Dashboard — Weekly Sales Overview">
             </div>
         </div>
     </section>
@@ -1508,88 +1307,6 @@
             toast('Message sent! We\'ll get back to you within 24 hours.', 'success');
         }
 
-        // ── HERO BAR CHART ──
-        // Uses LOCAL date strings (not UTC .slice) to match signup.html exactly.
-        // Each bar = one calendar day. Sunday 00:00 local = new week, all bars reset.
-
-        function localDateStr(d) {
-            return d.getFullYear() + '-' +
-                String(d.getMonth() + 1).padStart(2, '0') + '-' +
-                String(d.getDate()).padStart(2, '0');
-        }
-
-        const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-        function getTxnBucket() {
-            const bucket = {};
-            try {
-                const store = getStore();
-                if (store && store.transactions) {
-                    store.transactions.forEach(t => {
-                        if (!t.createdAt || !t.amount) return;
-                        const ds = localDateStr(new Date(t.createdAt));
-                        bucket[ds] = (bucket[ds] || 0) + t.amount;
-                    });
-                }
-            } catch (e) { }
-            return bucket;
-        }
-
-        function buildWeekSlots(bucket) {
-            const now = new Date();
-            const todayDow = now.getDay();
-            return DAYS.map((dayName, i) => {
-                const slotDate = new Date(now);
-                slotDate.setHours(0, 0, 0, 0);
-                slotDate.setDate(slotDate.getDate() - (todayDow - i));
-                const ds = localDateStr(slotDate);
-                const isFuture = i > todayDow;
-                const isToday = i === todayDow;
-                const dateLabel = String(slotDate.getDate()).padStart(2, '0') + '/' +
-                    String(slotDate.getMonth() + 1).padStart(2, '0');
-                return {
-                    dayName, dateLabel, ds, isFuture, isToday, i,
-                    amount: isFuture ? 0 : (bucket[ds] || 0)
-                };
-            });
-        }
-
-        function fmtBarVal(n) {
-            if (!n) return '';
-            if (n >= 1000000) return 'R' + (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
-            if (n >= 1000) return 'R' + (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
-            return 'R' + Math.round(n);
-        }
-
-        function initHeroChart() {
-            const container = document.getElementById('hero-bar-chart');
-            if (!container) return;
-            const slots = buildWeekSlots(getTxnBucket());
-            const maxAmount = Math.max(...slots.map(s => s.amount), 1);
-
-            container.innerHTML = slots.map(s => `
-                <div class="mock-bar-group" id="hbc-group-${s.i}" style="opacity:${s.isFuture ? 0.25 : 1}">
-                    <div id="hbc-val-${s.i}" style="font-size:7px;color:var(--gray-500);font-family:var(--font-mono);height:10px;display:flex;align-items:flex-end;justify-content:center">${fmtBarVal(s.amount)}</div>
-                    <div id="hbc-bar-${s.i}" style="width:100%;height:${s.isFuture ? 2 : (s.amount > 0 ? Math.max((s.amount / maxAmount) * 56, 3) : 2)}px;background:${s.isToday ? 'var(--black)' : (s.isFuture ? 'var(--gray-200)' : 'var(--gray-400)')};border-radius:2px;transition:height .45s cubic-bezier(.4,0,.2,1)"></div>
-                    <div class="mock-bar-label" style="font-size:7px;text-align:center;line-height:1.4">
-                        <div style="font-weight:${s.isToday ? 700 : 400}">${s.dayName}</div>
-                        <div style="color:var(--gray-300)">${s.dateLabel}</div>
-                    </div>
-                </div>`).join('');
-        }
-
-        function updateHeroChart() {
-            const slots = buildWeekSlots(getTxnBucket());
-            const maxAmount = Math.max(...slots.map(s => s.amount), 1);
-            slots.forEach(s => {
-                const barEl = document.getElementById(`hbc-bar-${s.i}`);
-                const valEl = document.getElementById(`hbc-val-${s.i}`);
-                if (!barEl || !valEl) return;
-                barEl.style.height = (s.isFuture ? 2 : (s.amount > 0 ? Math.max((s.amount / maxAmount) * 56, 3) : 2)) + 'px';
-                valEl.textContent = fmtBarVal(s.amount);
-            });
-        }
-
         // ── ACTIVE SECTION SCROLL-SPY ──
         function setupScrollSpy() {
             const sections = [
@@ -1616,18 +1333,7 @@
 
         // ── BOOTSTRAP ON DOM READY ──
         document.addEventListener('DOMContentLoaded', () => {
-            initHeroChart();
             setupScrollSpy();
-
-            // Poll localStorage every 2s — animate bars when new transactions appear
-            let lastSnapshot = localStorage.getItem(STORAGE_KEY);
-            setInterval(() => {
-                const current = localStorage.getItem(STORAGE_KEY);
-                if (current !== lastSnapshot) {
-                    lastSnapshot = current;
-                    updateHeroChart();
-                }
-            }, 2000);
         });
     </script>
 

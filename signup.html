@@ -1787,7 +1787,7 @@
                 </div>
             </div>
             <div class="form-group">
-                <label class="form-label">Country &amp; Currency <span class="required-star">*</span></label>
+                <label class="form-label">Country & Currency <span class="required-star">*</span></label>
                 <select id="reg-currency" class="form-select" onchange="updatePlanPriceDisplay()">
                     <option value="ZAR|R|South Africa">🇿🇦 South Africa - ZAR (R)</option>
                     <option value="BWP|P|Botswana">🇧🇼 Botswana - BWP (P)</option>
@@ -1857,7 +1857,7 @@
                     <li>Transaction Receipts</li>
                     <li>Multi-Store (up to 3 locations)</li>
                     <li>Audit Action Logs</li>
-                    <li>Weekly, Monthly &amp; Yearly Exports</li>
+                    <li>Weekly, Monthly & Yearly Exports</li>
                     <li>2-day grace period</li>
                 </ul>
             </div>
@@ -2319,7 +2319,7 @@
         }
 
         function sanitize(str) {
-            return String(str).replace(/[<>"'&]/g, c => ({ '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '&': '&amp;' }[c]));
+            return String(str).replace(/[<>"'&]/g, c => ({ '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '&': '&' }[c]));
         }
         // Safe attribute value - strips all quotes/backticks so it can't break out of onclick="..." context
         function safeAttr(str) {

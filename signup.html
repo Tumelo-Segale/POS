@@ -108,7 +108,6 @@
         .auth-logo-icon {
             width: 56px;
             height: 56px;
-            background: var(--black);
             border-radius: var(--radius);
             display: flex;
             align-items: center;
@@ -509,7 +508,6 @@
             width: 32px;
             height: 32px;
             min-width: 32px;
-            background: var(--white);
             border-radius: var(--radius);
             display: flex;
             align-items: center;
@@ -1720,7 +1718,7 @@
             </div>
             <div class="auth-logo">
                 <div class="auth-logo-icon"><img src="Logo-icon.png" alt="SaleStation"
-                        style="width:36px;height:36px;object-fit:contain;filter:invert(1)" /></div>
+                        style="width:36px;height:36px;object-fit:contain" /></div>
                 <h1>SaleStation</h1>
                 <p>Welcome back.</p>
             </div>
@@ -1764,7 +1762,7 @@
             </div>
             <div class="auth-logo">
                 <div class="auth-logo-icon"><img src="Logo-icon.png" alt="SaleStation"
-                        style="width:36px;height:36px;object-fit:contain;filter:invert(1)" /></div>
+                        style="width:36px;height:36px;object-fit:contain" /></div>
                 <h1>Register Business</h1>
                 <p>Step 1 of 2 — Business Details</p>
             </div>
@@ -1880,7 +1878,7 @@
             <div class="sidebar-logo">
                 <div class="sidebar-logo-inner">
                     <div class="sidebar-logo-icon"><img src="Logo-icon.png" alt="SaleStation"
-                            style="width:22px;height:22px;object-fit:contain" /></div>
+                            style="width:22px;height:22px;object-fit:contain;filter:invert(1)" /></div>
                     <span class="sidebar-logo-text">SaleStation</span>
                 </div>
                 <button class="sidebar-close-btn" onclick="closeMobileSidebar()"><svg width="16" height="16" fill="none"
@@ -2446,7 +2444,7 @@
             }
             if (parts[0] && parts[0] !== 'ZAR') {
                 intlNote.style.display = 'block';
-                intlNote.textContent = `ℹ All subscription prices are in South African Rand (ZAR). As a ${parts[2]} business, your bank will convert the charge to ${parts[0]} at the prevailing exchange rate.`;
+                intlNote.textContent = `All subscription prices are in South African Rand (ZAR). As a ${parts[2]} business, your bank will convert the charge to ${parts[0]} at the prevailing exchange rate.`;
             } else {
                 intlNote.style.display = 'none';
             }
@@ -3002,7 +3000,6 @@
             const planCounts = { trial: 0, starter: 0, premium: 0 };
             store.businesses.forEach(b => { if (planCounts[b.plan] !== undefined) planCounts[b.plan]++; });
             const activeSubCount = store.subscriptions.filter(s => { const st = getSubStatus(s.businessId); return st && st.active; }).length;
-            const expiredSubCount = store.subscriptions.filter(s => { const st = getSubStatus(s.businessId); return st && !st.active; }).length;
             const graceSubCount = store.subscriptions.filter(s => { const st = getSubStatus(s.businessId); return st && st.inGrace; }).length;
 
             area.innerHTML = `
@@ -3012,10 +3009,9 @@
       <div class="stat-card"><div class="stat-icon">${Icon.message}</div><div><div class="stat-label">Unread Messages</div><div class="stat-value">${msgs}</div></div></div>
       <div class="stat-card"><div class="stat-icon">${Icon.users}</div><div><div class="stat-label">Total Businesses</div><div class="stat-value">${total}</div></div></div>
     </div>
-    <div class="stats-grid mb-20" style="grid-template-columns:repeat(3,1fr)">
+    <div class="stats-grid mb-20" style="grid-template-columns:repeat(2,1fr)">
       <div class="stat-card"><div class="stat-icon">${Icon.checkCircle}</div><div><div class="stat-label">Active Subscriptions</div><div class="stat-value" style="color:var(--green)">${activeSubCount}</div></div></div>
       <div class="stat-card"><div class="stat-icon">${Icon.alert}</div><div><div class="stat-label">In Grace Period</div><div class="stat-value" style="color:var(--orange)">${graceSubCount}</div></div></div>
-      <div class="stat-card"><div class="stat-icon">${Icon.trash}</div><div><div class="stat-label">Expired Subscriptions</div><div class="stat-value" style="color:var(--red)">${expiredSubCount}</div></div></div>
     </div>
     <div class="card" style="margin-bottom:20px">
       <div class="card-header"><span class="card-title">Plan Distribution</span></div>

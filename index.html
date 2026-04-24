@@ -855,6 +855,214 @@
         .mb-20 {
             margin-bottom: 20px;
         }
+
+        /* ── TERMS & CONDITIONS MODAL ── */
+        #tc-modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, .6);
+            z-index: 9000;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+
+        #tc-modal-overlay.open {
+            display: flex;
+        }
+
+        #tc-modal {
+            background: var(--white);
+            border-radius: 4px;
+            width: 100%;
+            max-width: 680px;
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 24px 64px rgba(0, 0, 0, .2);
+            border: 1px solid var(--gray-200);
+        }
+
+        .tc-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--gray-100);
+            flex-shrink: 0;
+        }
+
+        .tc-modal-header h3 {
+            font-family: var(--font-mono);
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .tc-modal-close {
+            background: none;
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius);
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: var(--gray-500);
+            transition: all .15s;
+        }
+
+        .tc-modal-close:hover {
+            background: var(--gray-100);
+            color: var(--black);
+        }
+
+        .tc-modal-body {
+            overflow-y: auto;
+            padding: 24px;
+            flex: 1;
+        }
+
+        .tc-modal-body h4 {
+            font-family: var(--font-mono);
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .06em;
+            color: var(--black);
+            margin-top: 24px;
+            margin-bottom: 8px;
+        }
+
+        .tc-modal-body h4:first-child {
+            margin-top: 0;
+        }
+
+        .tc-modal-body p {
+            font-size: 13px;
+            color: var(--gray-600);
+            line-height: 1.7;
+            margin-bottom: 8px;
+        }
+
+        .tc-modal-body ul {
+            margin: 0 0 8px 16px;
+        }
+
+        .tc-modal-body ul li {
+            font-size: 13px;
+            color: var(--gray-600);
+            line-height: 1.7;
+            margin-bottom: 4px;
+        }
+
+        .tc-modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid var(--gray-100);
+            flex-shrink: 0;
+        }
+
+        /* ── MOBILE RESPONSIVE IMPROVEMENTS ── */
+        @media (max-width: 480px) {
+            .hero {
+                padding: 96px 0 60px;
+            }
+
+            .hero p {
+                font-size: 15px;
+            }
+
+            .overview {
+                padding: 64px 0;
+            }
+
+            .steps {
+                padding: 56px 0;
+            }
+
+            .features {
+                padding: 64px 0;
+            }
+
+            .pricing {
+                padding: 64px 0;
+            }
+
+            .contact {
+                padding: 64px 0;
+            }
+
+            .section-header {
+                margin-bottom: 36px;
+            }
+
+            .section-header h2 {
+                font-size: 24px;
+            }
+
+            .overview-image {
+                padding: 24px 16px;
+            }
+
+            .plan-card {
+                padding: 28px 20px;
+            }
+
+            .contact-form-card {
+                padding: 20px 16px;
+            }
+
+            .footer-inner {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 16px;
+            }
+
+            .footer-inner>div:last-child {
+                flex-wrap: wrap;
+                gap: 16px;
+            }
+
+            .btn-lg {
+                height: 48px;
+                padding: 0 24px;
+                font-size: 14px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .hero {
+                padding-top: 88px;
+            }
+
+            .pricing-grid {
+                grid-template-columns: 1fr;
+                max-width: 400px;
+                margin-left: auto;
+                margin-right: auto;
+            }
+
+            .feature-grid {
+                grid-template-columns: 1fr;
+                gap: 24px;
+            }
+
+            .steps-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+
+            .hero-cta {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .hero-cta .btn {
+                width: 100%;
+                max-width: 280px;
+            }
+        }
     </style>
 </head>
 
@@ -868,11 +1076,7 @@
         <div class="sidebar-logo">
             <div class="sidebar-logo-inner">
                 <div class="sidebar-logo-icon">
-                    <svg width="16" height="16" fill="none" stroke="#0a0a0a" stroke-width="2" stroke-linecap="round"
-                        stroke-linejoin="round" viewBox="0 0 24 24">
-                        <rect x="2" y="5" width="20" height="14" rx="2" />
-                        <line x1="2" y1="10" x2="22" y2="10" />
-                    </svg>
+                    <img src="Logo-icon.png" alt="SaleStation" style="width:20px;height:20px;object-fit:contain">
                 </div>
                 <span class="sidebar-logo-text">SaleStation</span>
             </div>
@@ -930,11 +1134,8 @@
         <div class="container nav-inner">
             <a href="#" class="logo">
                 <div class="logo-icon">
-                    <svg width="16" height="16" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"
-                        stroke-linejoin="round" viewBox="0 0 24 24">
-                        <rect x="2" y="5" width="20" height="14" rx="2" />
-                        <line x1="2" y1="10" x2="22" y2="10" />
-                    </svg>
+                    <img src="Logo-icon.png" alt="SaleStation"
+                        style="width:22px;height:22px;object-fit:contain;filter:invert(1)">
                 </div>
                 SaleStation
             </a>
@@ -1053,7 +1254,7 @@
             <div class="overview-grid">
                 <div class="overview-text">
                     <h2>Receipts & Smart Discounts</h2>
-                    <p>Every completed sale instantly generates a detailed receipt — itemised breakdown, payment method,
+                    <p>Every completed sale instantly generates a detailed receipt — itemized breakdown, payment method,
                         cashier name, and a unique transaction ID for traceability.</p>
                     <p>Apply flat or percentage discounts at checkout. For cash payments, the system calculates exact
                         change automatically and displays it on the receipt for error-free transactions.</p>
@@ -1137,7 +1338,7 @@
                     </div>
                     <div>
                         <h3>Instant Receipts</h3>
-                        <p>Every transaction generates a detailed receipt with a unique ID, itemised breakdown, discount
+                        <p>Every transaction generates a detailed receipt with a unique ID, itemized breakdown, discount
                             applied, payment type, and cashier name.</p>
                     </div>
                 </div>
@@ -1227,8 +1428,22 @@
                     </div>
                     <div>
                         <h3>Multi-Currency Support</h3>
-                        <p>Set your local currency at registration — ZAR, BWP, LSL, or NAD. All prices, receipts, and
-                            reports display in your currency throughout.</p>
+                        <p>Set your local currency at registration - ZAR, BWP, LSL, or NAD. All prices, receipts, and
+                            reports display in your currency. Subscriptions are billed in ZAR; international customers
+                            are charged at the prevailing exchange rate.</p>
+                    </div>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-icon">
+                        <svg width="22" height="22" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" viewBox="0 0 24 24">
+                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h3>Location Sales Dashboards</h3>
+                        <p>Premium users can track revenue, cashier count, and transaction totals per branch — compare
+                            store performance at a glance from a single consolidated dashboard.</p>
                     </div>
                 </div>
             </div>
@@ -1241,6 +1456,11 @@
             <div class="section-header">
                 <h2>Simple, transparent pricing</h2>
                 <p class="text-muted">Start for free. Upgrade when you need more power.</p>
+                <p
+                    style="margin-top:10px;font-size:12px;color:var(--gray-400);background:var(--gray-50);border:1px solid var(--gray-200);border-radius:2px;display:inline-block;padding:6px 14px">
+                    All prices are in <strong>South African Rand (ZAR)</strong>. International customers (Botswana,
+                    Lesotho, Namibia) are billed in rands — your bank converts at the prevailing exchange rate.
+                </p>
             </div>
             <div class="pricing-grid">
                 <!-- Trial -->
@@ -1330,11 +1550,113 @@
             <div style="display:flex;gap:24px;flex-wrap:wrap">
                 <a href="signup.html" style="color:var(--gray-400);text-decoration:none">Login</a>
                 <a href="signup.html" style="color:var(--gray-400);text-decoration:none">Register</a>
-                <a href="#" style="color:var(--gray-400);text-decoration:none">Terms</a>
-                <a href="#" style="color:var(--gray-400);text-decoration:none">Privacy</a>
+                <a href="#" onclick="openTCModal();return false;"
+                    style="color:var(--gray-400);text-decoration:none">Terms</a>
             </div>
         </div>
     </footer>
+
+    <!-- TERMS & CONDITIONS MODAL -->
+    <div id="tc-modal-overlay" onclick="handleTCOverlayClick(event)">
+        <div id="tc-modal">
+            <div class="tc-modal-header">
+                <h3>Terms &amp; Conditions</h3>
+                <button class="tc-modal-close" onclick="closeTCModal()">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"
+                        stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+            </div>
+            <div class="tc-modal-body">
+                <h4>1. Acceptance of Terms</h4>
+                <p>By accessing or using SaleStation ("the Platform"), you agree to be bound by these Terms and
+                    Conditions. If you do not agree to these terms, you may not use the Platform. These terms apply to
+                    all users including business owners, cashiers, and visitors.</p>
+
+                <h4>2. Description of Service</h4>
+                <p>SaleStation is a cloud-based Point of Sale (POS) system designed for businesses operating in South
+                    Africa, Botswana, Lesotho, and Namibia. The Platform provides tools for managing sales, inventory,
+                    cashiers, receipts, subscriptions, and multi-store operations.</p>
+
+                <h4>3. Account Registration</h4>
+                <p>To access the Platform, you must register a business account. You agree to:</p>
+                <ul>
+                    <li>Provide accurate, current, and complete information during registration</li>
+                    <li>Maintain the security of your account credentials</li>
+                    <li>Notify us immediately of any unauthorized use of your account</li>
+                    <li>Take responsibility for all activity that occurs under your account</li>
+                </ul>
+
+                <h4>4. Subscription Plans &amp; Payments</h4>
+                <p>SaleStation offers a Free Trial and paid plans (Starter at R200/mo, Premium at R500/mo). Payments are
+                    processed in South African Rand (ZAR) via Paystack. By subscribing, you authorize recurring charges
+                    at the start of each billing cycle. All payments are non-refundable except where required by
+                    applicable law. A 2-day grace period applies to expired subscriptions before access is suspended.
+                </p>
+
+                <h4>5. Acceptable Use</h4>
+                <p>You agree not to use the Platform to:</p>
+                <ul>
+                    <li>Engage in fraudulent, deceptive, or illegal activities</li>
+                    <li>Transmit harmful, offensive, or unlawful content</li>
+                    <li>Attempt to gain unauthorized access to any part of the Platform</li>
+                    <li>Reverse engineer, decompile, or disassemble any part of the Platform</li>
+                    <li>Resell or redistribute access to the Platform without written consent</li>
+                </ul>
+
+                <h4>6. Data &amp; Privacy</h4>
+                <p>SaleStation collects and processes business and transaction data necessary to provide the service. We
+                    do not sell your data to third parties. Data is stored securely and handled in accordance with
+                    applicable data protection legislation, including POPIA (Protection of Personal Information Act,
+                    South Africa). You retain ownership of your business data and may request export or deletion at any
+                    time.</p>
+
+                <h4>7. Service Availability</h4>
+                <p>We aim to maintain high availability of the Platform but do not guarantee uninterrupted access.
+                    Scheduled maintenance, system upgrades, or unforeseen events may cause temporary outages.
+                    SaleStation shall not be liable for losses arising from service interruptions beyond our reasonable
+                    control.</p>
+
+                <h4>8. Intellectual Property</h4>
+                <p>All content, design, code, trademarks, and materials within the Platform are the exclusive property
+                    of SaleStation and its licensors. You may not copy, modify, distribute, or create derivative works
+                    without prior written permission.</p>
+
+                <h4>9. Limitation of Liability</h4>
+                <p>To the maximum extent permitted by law, SaleStation shall not be liable for any indirect, incidental,
+                    special, consequential, or punitive damages, including loss of revenue, loss of data, or business
+                    interruption, arising from your use of or inability to use the Platform.</p>
+
+                <h4>10. Account Suspension &amp; Termination</h4>
+                <p>SaleStation reserves the right to suspend or terminate accounts that violate these Terms, engage in
+                    fraudulent activity, or fail to maintain an active subscription. Upon termination, access to the
+                    Platform and associated data may be revoked. You may also delete your account at any time from the
+                    account settings.</p>
+
+                <h4>11. Modifications to Terms</h4>
+                <p>We reserve the right to update these Terms at any time. We will notify registered users of material
+                    changes via email or in-app notification. Continued use of the Platform after changes constitutes
+                    acceptance of the updated Terms.</p>
+
+                <h4>12. Governing Law</h4>
+                <p>These Terms are governed by the laws of the Republic of South Africa. Any disputes arising from these
+                    Terms or your use of the Platform shall be subject to the exclusive jurisdiction of the courts of
+                    South Africa.</p>
+
+                <h4>13. Contact</h4>
+                <p>For questions regarding these Terms, please contact us through the <a href="#contact"
+                        onclick="closeTCModal()" style="color:var(--black);font-weight:600">Contact</a> section on our
+                    website.</p>
+
+                <p style="margin-top:20px;font-size:12px;color:var(--gray-400)">Last updated: April 2026</p>
+            </div>
+            <div class="tc-modal-footer">
+                <button class="btn btn-primary btn-full" onclick="closeTCModal()">I Understand</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Toast Container -->
     <div id="toast-container"></div>
@@ -1454,6 +1776,28 @@
             window.addEventListener('scroll', updateActiveNav, { passive: true });
             updateActiveNav();
         }
+
+        // ── TERMS & CONDITIONS MODAL ──
+        function openTCModal() {
+            document.getElementById('tc-modal-overlay').classList.add('open');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeTCModal() {
+            document.getElementById('tc-modal-overlay').classList.remove('open');
+            document.body.style.overflow = '';
+        }
+
+        function handleTCOverlayClick(e) {
+            if (e.target === document.getElementById('tc-modal-overlay')) {
+                closeTCModal();
+            }
+        }
+
+        // Close T&C modal with Escape key
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') closeTCModal();
+        });
 
         // ── BOOTSTRAP ON DOM READY ──
         document.addEventListener('DOMContentLoaded', () => {

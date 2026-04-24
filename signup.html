@@ -1719,11 +1719,8 @@
                 </a>
             </div>
             <div class="auth-logo">
-                <div class="auth-logo-icon"><svg width="26" height="26" fill="none" stroke="white" stroke-width="2"
-                        stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
-                        <rect x="2" y="5" width="20" height="14" rx="2" />
-                        <line x1="2" y1="10" x2="22" y2="10" />
-                    </svg></div>
+                <div class="auth-logo-icon"><img src="Logo-icon.png" alt="SaleStation"
+                        style="width:36px;height:36px;object-fit:contain;filter:invert(1)" /></div>
                 <h1>SaleStation</h1>
                 <p>Welcome back.</p>
             </div>
@@ -1766,11 +1763,8 @@
                 </a>
             </div>
             <div class="auth-logo">
-                <div class="auth-logo-icon"><svg width="26" height="26" fill="none" stroke="white" stroke-width="2"
-                        stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
-                        <rect x="2" y="5" width="20" height="14" rx="2" />
-                        <line x1="2" y1="10" x2="22" y2="10" />
-                    </svg></div>
+                <div class="auth-logo-icon"><img src="Logo-icon.png" alt="SaleStation"
+                        style="width:36px;height:36px;object-fit:contain;filter:invert(1)" /></div>
                 <h1>Register Business</h1>
                 <p>Step 1 of 2 — Business Details</p>
             </div>
@@ -1885,11 +1879,8 @@
         <aside id="sidebar">
             <div class="sidebar-logo">
                 <div class="sidebar-logo-inner">
-                    <div class="sidebar-logo-icon"><svg width="18" height="18" fill="none" stroke="#0a0a0a"
-                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
-                            <rect x="2" y="5" width="20" height="14" rx="2" />
-                            <line x1="2" y1="10" x2="22" y2="10" />
-                        </svg></div>
+                    <div class="sidebar-logo-icon"><img src="Logo-icon.png" alt="SaleStation"
+                            style="width:22px;height:22px;object-fit:contain" /></div>
                     <span class="sidebar-logo-text">SaleStation</span>
                 </div>
                 <button class="sidebar-close-btn" onclick="closeMobileSidebar()"><svg width="16" height="16" fill="none"
@@ -2435,14 +2426,30 @@
         let activeTab = '';
 
         function updatePlanPriceDisplay() {
-            const currencyVal = document.getElementById('reg-currency')?.value || 'ZAR|R|South Africa';
-            const sym = currencyVal.split('|')[1] || 'R';
+            // Subscription prices are ALWAYS in ZAR — always show R prefix regardless of selected country
             const trialEl = document.getElementById('plan-price-trial');
             const starterEl = document.getElementById('plan-price-starter');
             const premiumEl = document.getElementById('plan-price-premium');
-            if (trialEl) trialEl.innerHTML = `${sym}0<span>/7 days</span>`;
-            if (starterEl) starterEl.innerHTML = `${sym}${PLAN_LIMITS.starter.price}<span>/mo</span>`;
-            if (premiumEl) premiumEl.innerHTML = `${sym}${PLAN_LIMITS.premium.price}<span>/mo</span>`;
+            if (trialEl) trialEl.innerHTML = `R0<span>/7 days</span>`;
+            if (starterEl) starterEl.innerHTML = `R${PLAN_LIMITS.starter.price}<span>/mo</span>`;
+            if (premiumEl) premiumEl.innerHTML = `R${PLAN_LIMITS.premium.price}<span>/mo</span>`;
+            // Show international note if non-ZAR country selected
+            const currencyVal = document.getElementById('reg-currency')?.value || 'ZAR|R|South Africa';
+            const parts = currencyVal.split('|');
+            let intlNote = document.getElementById('intl-currency-note');
+            if (!intlNote) {
+                intlNote = document.createElement('div');
+                intlNote.id = 'intl-currency-note';
+                intlNote.style.cssText = 'font-size:11px;color:var(--blue);background:var(--blue-bg);border:1px solid #c0d1f5;border-radius:var(--radius);padding:8px 10px;margin-top:8px';
+                const planTrialEl = document.getElementById('plan-trial');
+                if (planTrialEl) planTrialEl.parentNode.insertBefore(intlNote, planTrialEl);
+            }
+            if (parts[0] && parts[0] !== 'ZAR') {
+                intlNote.style.display = 'block';
+                intlNote.textContent = `ℹ All subscription prices are in South African Rand (ZAR). As a ${parts[2]} business, your bank will convert the charge to ${parts[0]} at the prevailing exchange rate.`;
+            } else {
+                intlNote.style.display = 'none';
+            }
         }
 
         function goToPlanPage() {
@@ -2492,15 +2499,24 @@
             crypto.getRandomValues(arr);
             const tempPass = 'T' + arr[0].toString(36).toUpperCase() + arr[1].toString(36).toUpperCase().slice(0, 4);
             updateStore(d => ({ ...d, users: d.users.map(u => u.email.toLowerCase() === email ? { ...u, password: tempPass } : u) }));
-            closeModal();
-            openModal('Password Reset', `
+            // Close first modal then open second — lock the overlay so clicking outside won't close the password modal
+            document.getElementById('modal-overlay').classList.remove('open');
+            setTimeout(() => {
+                document.getElementById('modal-title').innerHTML = 'Password Reset';
+                document.getElementById('modal-body').innerHTML = `
     <div style="text-align:center;padding:12px 0">
       <p style="font-size:13px;color:var(--gray-600);margin-bottom:16px">Your temporary password is:</p>
       <div style="background:var(--gray-50);border:1px solid var(--gray-200);border-radius:var(--radius);padding:14px;font-family:var(--font-mono);font-size:20px;font-weight:700;letter-spacing:.1em;margin-bottom:16px">${tempPass}</div>
       <p style="font-size:12px;color:var(--gray-400);margin-bottom:20px">Please log in and change your password in Account Settings immediately.</p>
       <button class="btn btn-primary btn-full btn-lg" onclick="closeModal()">OK, I've noted it</button>
     </div>
-  `);
+  `;
+                // Remove click-outside-to-close for this critical modal
+                const overlay = document.getElementById('modal-overlay');
+                overlay.classList.add('open');
+                overlay.onclick = null; // prevent accidental close
+                // Re-attach close only via button
+            }, 50);
         }
 
         function handleLogin() {
@@ -2607,7 +2623,7 @@
       <div style="font-size:28px;font-weight:900;font-family:var(--font-mono);margin-bottom:8px">Free Trial</div>
       <div style="font-size:13px;color:var(--gray-500);margin-bottom:20px">Plan: <strong>${limits.label}</strong> — No payment required.</div>
       <div style="background:var(--gray-50);border:1px solid var(--gray-100);border-radius:var(--radius);padding:12px;margin-bottom:20px;text-align:left;font-size:12px">
-        <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--gray-500)">Amount</span><strong>R0.00</strong></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--gray-500)">Amount</span><strong>R0.00 (Free)</strong></div>
         <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--gray-500)">Plan</span><strong>${limits.label}</strong></div>
         <div style="display:flex;justify-content:space-between"><span style="color:var(--gray-500)">Duration</span><strong>${limits.durationDays} days</strong></div>
       </div>
@@ -2634,14 +2650,41 @@
             }
 
             // Paid plans — show summary modal with real Paystack button
+            // Subscription prices are ALWAYS charged in ZAR (South African Rand)
+            const zarPrice = 'R' + Number(price).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            // Check if user is non-ZAR (during registration via reg-currency, or via logged-in business)
+            let isNonZAR = false;
+            let localCurrencyNote = '';
+            if (currentUser && currentUser.businessId) {
+                const _biz = getStore().businesses.find(b => b.id === currentUser.businessId);
+                if (_biz && _biz.currency && _biz.currency !== 'ZAR') {
+                    isNonZAR = true;
+                    localCurrencyNote = `<div style="background:var(--blue-bg);border:1px solid #c0d1f5;border-radius:var(--radius);padding:10px 12px;margin-bottom:16px;font-size:12px;color:var(--blue);text-align:left">
+                        <strong>ℹ International Payment Note:</strong> This subscription is billed in ZAR (South African Rand). Your bank will convert <strong>${zarPrice}</strong> to your local currency (${_biz.currency}) at the prevailing exchange rate at the time of payment.
+                    </div>`;
+                }
+            } else {
+                // During registration — check the currency dropdown
+                const regCurrEl = document.getElementById('reg-currency');
+                if (regCurrEl) {
+                    const parts = regCurrEl.value.split('|');
+                    if (parts[0] && parts[0] !== 'ZAR') {
+                        isNonZAR = true;
+                        localCurrencyNote = `<div style="background:var(--blue-bg);border:1px solid #c0d1f5;border-radius:var(--radius);padding:10px 12px;margin-bottom:16px;font-size:12px;color:var(--blue);text-align:left">
+                            <strong>ℹ International Payment Note:</strong> All SaleStation subscriptions are billed in ZAR (South African Rand). Your bank will convert <strong>${zarPrice}</strong> to your local currency (${parts[0]}) at the prevailing exchange rate at the time of payment.
+                        </div>`;
+                    }
+                }
+            }
             openModal(`${Icon.paystack} Confirm Subscription`, `
     <div style="text-align:center;padding:16px 0">
-      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--gray-400);font-family:var(--font-mono);margin-bottom:8px">Payment</div>
-      <div style="font-size:28px;font-weight:900;font-family:var(--font-mono);margin-bottom:4px">${formatCurrency(price)}</div>
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--gray-400);font-family:var(--font-mono);margin-bottom:8px">Payment (billed in ZAR)</div>
+      <div style="font-size:28px;font-weight:900;font-family:var(--font-mono);margin-bottom:4px">${zarPrice}</div>
       <div style="font-size:13px;color:var(--gray-500);margin-bottom:4px">Plan: <strong>${limits.label}</strong></div>
-      <div style="font-size:12px;color:var(--gray-400);margin-bottom:20px">Click "Pay Now" to securely complete payment.</div>
+      <div style="font-size:12px;color:var(--gray-400);margin-bottom:16px">Click "Pay Now" to securely complete payment.</div>
+      ${localCurrencyNote}
       <div style="background:var(--gray-50);border:1px solid var(--gray-100);border-radius:var(--radius);padding:12px;margin-bottom:20px;text-align:left;font-size:12px">
-        <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--gray-500)">Amount</span><strong>${formatCurrency(price)}</strong></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--gray-500)">Amount (ZAR)</span><strong>${zarPrice}</strong></div>
         <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--gray-500)">Plan</span><strong>${limits.label}</strong></div>
         <div style="display:flex;justify-content:space-between"><span style="color:var(--gray-500)">Duration</span><strong>${limits.durationDays} days</strong></div>
       </div>
@@ -2656,7 +2699,11 @@
 
             document.getElementById('paystack-confirm-btn').onclick = () => {
                 const btn = document.getElementById('paystack-confirm-btn');
-                if (btn) { btn.classList.add('loading-btn'); btn.disabled = true; }
+                if (btn) {
+                    btn.classList.add('loading-btn');
+                    btn.disabled = true;
+                    btn.innerHTML = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="animation:spin .6s linear infinite"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg> Opening payment...`;
+                }
 
                 const handler = PaystackPop.setup({
                     key: PAYSTACK_PUBLIC_KEY,
@@ -2928,6 +2975,8 @@
         function closeModal(e) {
             if (!e || e.target === document.getElementById('modal-overlay')) {
                 document.getElementById('modal-overlay').classList.remove('open');
+                // Restore default click-outside-to-close behaviour
+                document.getElementById('modal-overlay').onclick = closeModal;
             }
         }
 
@@ -2936,7 +2985,6 @@
         // ============================================================
         function renderSuperDashboard(area) {
             const store = getStore();
-            // Fix 11: Revenue = sum of active subscription plan prices (not just once per business, respects actual sub plan)
             const revenue = store.subscriptions
                 .filter(s => s.status === 'active')
                 .reduce((a, s) => {
@@ -2950,23 +2998,47 @@
             const msgs = store.messages.filter(m => !m.read).length;
             const total = store.businesses.length;
 
+            // Plan distribution & subscription metrics
+            const planCounts = { trial: 0, starter: 0, premium: 0 };
+            store.businesses.forEach(b => { if (planCounts[b.plan] !== undefined) planCounts[b.plan]++; });
+            const activeSubCount = store.subscriptions.filter(s => { const st = getSubStatus(s.businessId); return st && st.active; }).length;
+            const expiredSubCount = store.subscriptions.filter(s => { const st = getSubStatus(s.businessId); return st && !st.active; }).length;
+            const graceSubCount = store.subscriptions.filter(s => { const st = getSubStatus(s.businessId); return st && st.inGrace; }).length;
+
             area.innerHTML = `
-    <div class="stats-grid stats-grid-3 mb-20">
-      <div class="stat-card"><div class="stat-icon">${Icon.credit}</div><div><div class="stat-label">Monthly Revenue</div><div class="stat-value">${formatCurrency(revenue)}</div></div></div>
+    <div class="stats-grid stats-grid-4 mb-20">
+      <div class="stat-card"><div class="stat-icon">${Icon.credit}</div><div><div class="stat-label">Monthly Revenue (ZAR)</div><div class="stat-value">R${Number(revenue).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div></div></div>
       <div class="stat-card"><div class="stat-icon">${Icon.dashboard}</div><div><div class="stat-label">Active Businesses</div><div class="stat-value">${active}</div></div></div>
       <div class="stat-card"><div class="stat-icon">${Icon.message}</div><div><div class="stat-label">Unread Messages</div><div class="stat-value">${msgs}</div></div></div>
+      <div class="stat-card"><div class="stat-icon">${Icon.users}</div><div><div class="stat-label">Total Businesses</div><div class="stat-value">${total}</div></div></div>
+    </div>
+    <div class="stats-grid mb-20" style="grid-template-columns:repeat(3,1fr)">
+      <div class="stat-card"><div class="stat-icon">${Icon.checkCircle}</div><div><div class="stat-label">Active Subscriptions</div><div class="stat-value" style="color:var(--green)">${activeSubCount}</div></div></div>
+      <div class="stat-card"><div class="stat-icon">${Icon.alert}</div><div><div class="stat-label">In Grace Period</div><div class="stat-value" style="color:var(--orange)">${graceSubCount}</div></div></div>
+      <div class="stat-card"><div class="stat-icon">${Icon.trash}</div><div><div class="stat-label">Expired Subscriptions</div><div class="stat-value" style="color:var(--red)">${expiredSubCount}</div></div></div>
+    </div>
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header"><span class="card-title">Plan Distribution</span></div>
+      <div class="card-body" style="display:flex;gap:24px;flex-wrap:wrap">
+        ${Object.entries(planCounts).map(([plan, count]) => `
+          <div style="text-align:center;padding:12px 20px;background:var(--gray-50);border:1px solid var(--gray-100);border-radius:var(--radius);min-width:100px">
+            <div style="font-size:22px;font-weight:900;font-family:var(--font-mono)">${count}</div>
+            <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-400);font-family:var(--font-mono);margin-top:4px">${plan.charAt(0).toUpperCase() + plan.slice(1)}</div>
+          </div>`).join('')}
+      </div>
     </div>
     <div class="card">
       <div class="card-header"><span class="card-title">Recent Businesses</span></div>
       <div class="table-wrapper">
         <table>
-          <thead><tr><th>Business</th><th>Plan</th><th>Status</th><th>Sub Status</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Business</th><th>Country</th><th>Plan</th><th>Status</th><th>Sub Status</th><th>Actions</th></tr></thead>
           <tbody>
-            ${store.businesses.length === 0 ? `<tr><td colspan="5"><div class="empty-state">No businesses yet</div></td></tr>` :
+            ${store.businesses.length === 0 ? `<tr><td colspan="6"><div class="empty-state">No businesses yet</div></td></tr>` :
                     store.businesses.slice(-10).reverse().map(b => {
                         const st = getSubStatus(b.id);
                         return `<tr>
                   <td><strong>${b.name}</strong><div class="text-muted text-sm">${b.email}</div></td>
+                  <td class="text-muted text-sm">${b.country || '—'}</td>
                   <td><span class="badge badge-gray">${b.plan}</span></td>
                   <td><span class="badge ${b.status === 'active' ? 'badge-green' : 'badge-red'}">${b.status}</span></td>
                   <td>${st ? `<span class="badge ${st.badge}">${st.label}</span>` : '-'}</td>
@@ -3039,33 +3111,6 @@
       </div>
     </div>
   `;
-        }
-
-        function viewBizDetails(bizId) {
-            // Fix 15: Super admin drill-down view for a business's transactions and items
-            const store = getStore();
-            const biz = store.businesses.find(b => b.id === bizId);
-            const items = store.items.filter(i => i.businessId === bizId);
-            const txns = store.transactions.filter(t => t.businessId === bizId).slice(-20).reverse();
-            openModal(`${sanitize(biz?.name || '')} — Details`, `
-    <div style="margin-bottom:16px">
-      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gray-400);font-family:var(--font-mono);margin-bottom:8px">Items (${items.length})</div>
-      ${items.length === 0 ? '<div class="empty-state" style="padding:12px">No items</div>' :
-                    `<div style="max-height:140px;overflow-y:auto;border:1px solid var(--gray-100);border-radius:var(--radius)">
-          <table style="width:100%;font-size:12px"><thead><tr style="border-bottom:1px solid var(--gray-100)"><th style="padding:6px 10px;color:var(--gray-400)">Name</th><th style="padding:6px 10px;color:var(--gray-400)">Price</th><th style="padding:6px 10px;color:var(--gray-400)">Status</th></tr></thead><tbody>
-          ${items.map(i => `<tr style="border-bottom:1px solid var(--gray-50)"><td style="padding:6px 10px">${sanitize(i.name)}</td><td style="padding:6px 10px;font-family:var(--font-mono)">${formatCurrency(i.price)}</td><td style="padding:6px 10px"><span class="badge ${i.status === 'active' ? 'badge-green' : 'badge-red'}" style="font-size:9px">${i.status}</span></td></tr>`).join('')}
-          </tbody></table></div>`}
-    </div>
-    <div>
-      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gray-400);font-family:var(--font-mono);margin-bottom:8px">Recent Transactions (last 20)</div>
-      ${txns.length === 0 ? '<div class="empty-state" style="padding:12px">No transactions</div>' :
-                    `<div style="max-height:160px;overflow-y:auto;border:1px solid var(--gray-100);border-radius:var(--radius)">
-          <table style="width:100%;font-size:12px"><thead><tr style="border-bottom:1px solid var(--gray-100)"><th style="padding:6px 10px;color:var(--gray-400)">Date</th><th style="padding:6px 10px;color:var(--gray-400)">Cashier</th><th style="padding:6px 10px;color:var(--gray-400)">Amount</th><th style="padding:6px 10px;color:var(--gray-400)">Type</th></tr></thead><tbody>
-          ${txns.map(t => `<tr style="border-bottom:1px solid var(--gray-50)"><td style="padding:6px 10px;color:var(--gray-500)">${formatDateShort(t.createdAt)}</td><td style="padding:6px 10px">${sanitize(t.cashierName || '')}</td><td style="padding:6px 10px;font-family:var(--font-mono);font-weight:700">${formatCurrency(t.amount)}</td><td style="padding:6px 10px"><span class="badge ${t.type === 'cash' ? 'badge-green' : 'badge-blue'}" style="font-size:9px">${t.type}</span></td></tr>`).join('')}
-          </tbody></table></div>`}
-    </div>
-    <button class="btn btn-outline btn-full" style="margin-top:16px" onclick="closeModal()">Close</button>
-  `);
         }
 
         function toggleBizStatus(id) {
@@ -3206,9 +3251,10 @@
 
         function fmtBar(n) {
             if (!n || n === 0) return '';
-            if (n >= 1000000) return 'R' + (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
-            if (n >= 1000) return 'R' + (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
-            return 'R' + Math.round(n);
+            const sym = getCurrencySymbol();
+            if (n >= 1000000) return sym + (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+            if (n >= 1000) return sym + (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+            return sym + Math.round(n);
         }
 
         /**
@@ -3380,9 +3426,14 @@
             const plan = biz?.plan || 'starter';
             const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.starter;
 
+            const activeItemCount = items.filter(i => i.status === 'active').length;
+            const itemLimitWarning = limits.items !== Infinity && (limits.items - activeItemCount) <= 3
+                ? `<span style="color:${activeItemCount >= limits.items ? 'var(--red)' : 'var(--orange)'};font-size:12px;font-weight:700;margin-left:8px">${activeItemCount >= limits.items ? '⚠ Limit reached' : `⚠ ${limits.items - activeItemCount} slot(s) left`}</span>`
+                : '';
+
             area.innerHTML = `
     <div class="page-header">
-      <h2 class="page-title">Inventory <span style="font-size:13px;color:var(--gray-400);font-weight:400;font-family:var(--font-sans)">${items.filter(i => i.status === 'active').length}${limits.items !== Infinity ? ' / ' + limits.items : ''} active</span></h2>
+      <h2 class="page-title">Inventory <span style="font-size:13px;color:var(--gray-400);font-weight:400;font-family:var(--font-sans)">${activeItemCount}${limits.items !== Infinity ? ' / ' + limits.items : ''} active${itemLimitWarning}</span></h2>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <div class="search-box"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--gray-400)"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="inv-search" type="text" placeholder="Search items..." style="padding-left:30px;height:34px" oninput="filterInventoryItems()" /></div>
         <select id="inv-status-filter" class="form-select" style="height:34px;width:120px" onchange="filterInventoryItems()">
@@ -4382,7 +4433,9 @@
             }
 
             // Excel with SheetJS — columns: Date, Amount, Type, Location, Cashier
-            const rows = [['Date', 'Amount (R)', 'Type', 'Location', 'Cashier']];
+            const biz = store.businesses.find(b => b.id === currentUser.businessId);
+            const currSym = biz?.currencySymbol || 'R';
+            const rows = [['Date', `Amount (${currSym})`, 'Type', 'Location', 'Cashier']];
             filtered.forEach(t => {
                 const cashier = store.users.find(u => u.id === t.cashierId);
                 const location = cashier && cashier.locationId ? store.locations.find(l => l.id === cashier.locationId) : null;
@@ -4458,7 +4511,9 @@
             const cashierLimitStr = limits.cashiers === Infinity ? 'Unlimited' : limits.cashiers;
             const itemLimitStr = limits.items === Infinity ? 'Unlimited' : limits.items;
 
-            // Compute prorated days if upgrading mid-month
+            const subPriceDisplay = limits.price === 0 ? 'Free Trial' : `R${Number(limits.price).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/month (billed in ZAR)`;
+            const isIntl = biz.currency && biz.currency !== 'ZAR';
+            const intlPriceNote = isIntl && limits.price > 0 ? `<div style="font-size:11px;color:var(--blue);margin-top:4px">Your bank converts this from ZAR to ${biz.currency} at the prevailing exchange rate.</div>` : '';
             const daysLeft = st?.daysLeft || 0;
             const proratedNote = daysLeft > 0 && biz.plan !== 'premium' ? `(~${daysLeft} days remaining on current plan — prorated)` : '';
 
@@ -4490,7 +4545,7 @@
             <span class="badge ${badgeClass}" style="font-size:11px;padding:4px 10px">${st?.label || sub.status}</span>
           </div>
           <div style="display:grid;grid-template-columns:1fr;gap:4px" class="sub-details-grid">
-            <div class="sub-detail-row"><span class="sub-detail-label">Price</span><span class="sub-detail-val">${limits.price === 0 ? 'Free Trial' : formatCurrency(limits.price) + '/month'}</span></div>
+            <div class="sub-detail-row"><span class="sub-detail-label">Price</span><div><span class="sub-detail-val">${subPriceDisplay}</span>${intlPriceNote}</div></div>
             <div class="sub-detail-row"><span class="sub-detail-label">Expiry Date</span><span class="sub-detail-val">${formatDateShort(sub.expiresAt)}</span></div>
             <div class="sub-detail-row"><span class="sub-detail-label">Cashier Limit</span><span class="sub-detail-val">${cashierLimitStr}</span></div>
             <div class="sub-detail-row"><span class="sub-detail-label">Item Limit</span><span class="sub-detail-val">${itemLimitStr}</span></div>
@@ -4602,6 +4657,7 @@
       <span class="plan-name">Starter</span>
       <span class="plan-price">R${PLAN_LIMITS.starter.price}<span>/mo</span></span>
     </div>
+    <div style="font-size:10px;color:var(--blue);margin-bottom:8px;font-family:var(--font-mono)">Billed in ZAR • international customers charged in rands</div>
     <ul class="plan-features">${featureList('starter')}</ul>
   </div>
   <div id="renew-plan-premium" class="plan-card" onclick="selectRenewPlan('premium')" style="cursor:pointer">
@@ -4609,6 +4665,7 @@
       <span class="plan-name">Premium <span class="plan-badge-tag popular-badge">Popular</span></span>
       <span class="plan-price">R${PLAN_LIMITS.premium.price}<span>/mo</span></span>
     </div>
+    <div style="font-size:10px;color:var(--blue);margin-bottom:8px;font-family:var(--font-mono)">Billed in ZAR • international customers charged in rands</div>
     <ul class="plan-features">${featureList('premium')}</ul>
   </div>
   <div style="display:flex;gap:10px;margin-top:16px">

@@ -1764,7 +1764,7 @@
                 <div class="auth-logo-icon"><img src="Logo-icon.png" alt="SaleStation"
                         style="width:36px;height:36px;object-fit:contain" /></div>
                 <h1>Register Business</h1>
-                <p>Step 1 of 2 — Business Details</p>
+                <p>Step 1 of 2 - Business Details</p>
             </div>
             <div class="form-group"><label class="form-label">Business Name <span
                         class="required-star">*</span></label><input id="reg-biz" type="text" class="form-input"
@@ -1789,10 +1789,10 @@
             <div class="form-group">
                 <label class="form-label">Country &amp; Currency <span class="required-star">*</span></label>
                 <select id="reg-currency" class="form-select" onchange="updatePlanPriceDisplay()">
-                    <option value="ZAR|R|South Africa">🇿🇦 South Africa — ZAR (R)</option>
-                    <option value="BWP|P|Botswana">🇧🇼 Botswana — BWP (P)</option>
-                    <option value="LSL|M|Lesotho">🇱🇸 Lesotho — LSL (M)</option>
-                    <option value="NAD|N$|Namibia">🇳🇦 Namibia — NAD (N$)</option>
+                    <option value="ZAR|R|South Africa">🇿🇦 South Africa - ZAR (R)</option>
+                    <option value="BWP|P|Botswana">🇧🇼 Botswana - BWP (P)</option>
+                    <option value="LSL|M|Lesotho">🇱🇸 Lesotho - LSL (M)</option>
+                    <option value="NAD|N$|Namibia">🇳🇦 Namibia - NAD (N$)</option>
                 </select>
             </div>
             <button class="btn btn-primary btn-full btn-lg" style="margin-top:8px" onclick="goToPlanPage()">Next: Select
@@ -1815,7 +1815,7 @@
             </div>
             <div class="auth-logo">
                 <h1>Choose Your Plan</h1>
-                <p>Step 2 of 2 — Select the plan that fits your business</p>
+                <p>Step 2 of 2 - Select the plan that fits your business</p>
             </div>
             <!-- Trial -->
             <div id="plan-trial" class="plan-card" onclick="selectPlan('trial')">
@@ -2059,7 +2059,7 @@
         // ============================================================
         function addAuditLog(action, target) {
             if (!currentUser) return;
-            // Fix 4: Super admin has no businessId — use a sentinel value so logs are always recorded
+            // Fix 4: Super admin has no businessId - use a sentinel value so logs are always recorded
             const bizId = currentUser.businessId || 'super-admin';
             updateStore(d => ({
                 ...d,
@@ -2095,7 +2095,7 @@
             if (sub.status === 'cancelled') {
                 // Cancelled: still active until expiry date (no grace period)
                 if (now <= expires) return { status: 'cancelled', label: 'Cancelled', badge: 'badge-orange', active: true, inGrace: false, daysLeft, expiresAt: sub.expiresAt };
-                // Past expiry — fully expired, access denied
+                // Past expiry - fully expired, access denied
                 return { status: 'cancelled-expired', label: 'Cancelled', badge: 'badge-red', active: false, inGrace: false };
             }
             if (now <= expires) return { status: 'active', label: 'Active', badge: 'badge-green', active: true, inGrace: false, daysLeft, expiresAt: sub.expiresAt };
@@ -2160,7 +2160,7 @@
             wsSimInterval = wsSimInterval || setInterval(() => {
                 if (currentUser && currentUser.businessId) {
                     checkCancelledSubscriptionExpiry(currentUser.businessId);
-                    // Periodic sub enforcement — catches expired subs even if user never leaves POS
+                    // Periodic sub enforcement - catches expired subs even if user never leaves POS
                     if (currentUser.role !== 'super-admin') {
                         const st = getSubStatus(currentUser.businessId);
                         if (st && !st.active) {
@@ -2190,7 +2190,7 @@
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(data.store));
                     if (activeTab && currentUser) {
                         if (activeTab === 'dashboard') {
-                            // Animate chart bars in-place — no full re-render flicker
+                            // Animate chart bars in-place - no full re-render flicker
                             updateDashboardChart();
                         } else if (activeTab !== 'pos') {
                             renderContent(activeTab);
@@ -2321,7 +2321,7 @@
         function sanitize(str) {
             return String(str).replace(/[<>"'&]/g, c => ({ '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '&': '&amp;' }[c]));
         }
-        // Safe attribute value — strips all quotes/backticks so it can't break out of onclick="..." context
+        // Safe attribute value - strips all quotes/backticks so it can't break out of onclick="..." context
         function safeAttr(str) {
             return String(str).replace(/["'`<>&]/g, '');
         }
@@ -2424,7 +2424,7 @@
         let activeTab = '';
 
         function updatePlanPriceDisplay() {
-            // Subscription prices are ALWAYS in ZAR — always show R prefix regardless of selected country
+            // Subscription prices are ALWAYS in ZAR - always show R prefix regardless of selected country
             const trialEl = document.getElementById('plan-price-trial');
             const starterEl = document.getElementById('plan-price-starter');
             const premiumEl = document.getElementById('plan-price-premium');
@@ -2497,7 +2497,7 @@
             crypto.getRandomValues(arr);
             const tempPass = 'T' + arr[0].toString(36).toUpperCase() + arr[1].toString(36).toUpperCase().slice(0, 4);
             updateStore(d => ({ ...d, users: d.users.map(u => u.email.toLowerCase() === email ? { ...u, password: tempPass } : u) }));
-            // Close first modal then open second — lock the overlay so clicking outside won't close the password modal
+            // Close first modal then open second - lock the overlay so clicking outside won't close the password modal
             document.getElementById('modal-overlay').classList.remove('open');
             setTimeout(() => {
                 document.getElementById('modal-title').innerHTML = 'Password Reset';
@@ -2559,7 +2559,7 @@
         }
 
         function handleLogout() {
-            // Fix 19: Use neutral "Log Out" label — not danger red, since logout is not destructive
+            // Fix 19: Use neutral "Log Out" label - not danger red, since logout is not destructive
             confirm2('Log Out', 'Are you sure you want to log out?', { okLabel: 'Log Out', okClass: 'btn-outline' }).then(ok => {
                 if (!ok) return;
                 performLogout();
@@ -2606,7 +2606,7 @@
         }
 
         // ============================================================
-        // PAYSTACK PUBLIC KEY — replace with your actual key
+        // PAYSTACK PUBLIC KEY - replace with your actual key
         // ============================================================
         const PAYSTACK_PUBLIC_KEY = 'pk_test_328d06e1e7acac75cab1175db7c135a8f1697132';
 
@@ -2614,12 +2614,12 @@
             const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.starter;
             const price = limits.price;
 
-            // Free trial — skip Paystack, go straight to completion
+            // Free trial - skip Paystack, go straight to completion
             if (price === 0) {
                 openModal(`${Icon.paystack} Activate Trial`, `
     <div style="text-align:center;padding:16px 0">
       <div style="font-size:28px;font-weight:900;font-family:var(--font-mono);margin-bottom:8px">Free Trial</div>
-      <div style="font-size:13px;color:var(--gray-500);margin-bottom:20px">Plan: <strong>${limits.label}</strong> — No payment required.</div>
+      <div style="font-size:13px;color:var(--gray-500);margin-bottom:20px">Plan: <strong>${limits.label}</strong> - No payment required.</div>
       <div style="background:var(--gray-50);border:1px solid var(--gray-100);border-radius:var(--radius);padding:12px;margin-bottom:20px;text-align:left;font-size:12px">
         <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--gray-500)">Amount</span><strong>R0.00 (Free)</strong></div>
         <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--gray-500)">Plan</span><strong>${limits.label}</strong></div>
@@ -2647,7 +2647,7 @@
                 return;
             }
 
-            // Paid plans — show summary modal with real Paystack button
+            // Paid plans - show summary modal with real Paystack button
             // Subscription prices are ALWAYS charged in ZAR (South African Rand)
             const zarPrice = 'R' + Number(price).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             // Check if user is non-ZAR (during registration via reg-currency, or via logged-in business)
@@ -2662,7 +2662,7 @@
                     </div>`;
                 }
             } else {
-                // During registration — check the currency dropdown
+                // During registration - check the currency dropdown
                 const regCurrEl = document.getElementById('reg-currency');
                 if (regCurrEl) {
                     const parts = regCurrEl.value.split('|');
@@ -2706,7 +2706,7 @@
                 const handler = PaystackPop.setup({
                     key: PAYSTACK_PUBLIC_KEY,
                     email: email || (currentUser && (getStore().businesses.find(b => b.id === currentUser.businessId)?.email || currentUser.email)) || '',
-                    amount: price * 100, // Paystack uses kobo/cents — ZAR cents
+                    amount: price * 100, // Paystack uses kobo/cents - ZAR cents
                     currency: 'ZAR',
                     ref: 'SS-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
                     metadata: {
@@ -2721,7 +2721,7 @@
                         toast('Payment cancelled.', 'error');
                     },
                     callback: function (response) {
-                        // Payment verified by Paystack — process on our side
+                        // Payment verified by Paystack - process on our side
                         closeModal();
                         toast('Payment successful! Setting up your account...', 'success');
                         if (isRenew) {
@@ -3028,7 +3028,7 @@
                         const st = getSubStatus(b.id);
                         return `<tr>
                   <td><strong>${b.name}</strong><div class="text-muted text-sm">${b.email}</div></td>
-                  <td class="text-muted text-sm">${b.country || '—'}</td>
+                  <td class="text-muted text-sm">${b.country || '-'}</td>
                   <td><span class="badge badge-gray">${b.plan}</span></td>
                   <td><span class="badge ${b.status === 'active' ? 'badge-green' : 'badge-red'}">${b.status}</span></td>
                   <td>${st ? `<span class="badge ${st.badge}">${st.label}</span>` : '-'}</td>
@@ -3050,7 +3050,7 @@
             const biz = store.businesses.find(b => b.id === bizId);
             const items = store.items.filter(i => i.businessId === bizId);
             const txns = store.transactions.filter(t => t.businessId === bizId).slice(-20).reverse();
-            openModal(`${sanitize(biz?.name || '')} — Details`, `
+            openModal(`${sanitize(biz?.name || '')} - Details`, `
     <div style="margin-bottom:16px">
       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gray-400);font-family:var(--font-mono);margin-bottom:8px">Items (${items.length})</div>
       ${items.length === 0 ? '<div class="empty-state" style="padding:12px">No items</div>' :
@@ -3107,7 +3107,7 @@
             const store = getStore();
             const biz = store.businesses.find(b => b.id === id);
             const newStatus = biz?.status === 'active' ? 'inactive' : 'active';
-            // Update business status and users in one shot — do NOT force logout or redirect super admin
+            // Update business status and users in one shot - do NOT force logout or redirect super admin
             updateStore(d => ({
                 ...d,
                 businesses: d.businesses.map(b => b.id === id ? { ...b, status: newStatus } : b),
@@ -3118,7 +3118,7 @@
                 currentUser: newStatus === 'inactive' && d.currentUser?.businessId === id ? null : d.currentUser
             }));
             addAuditLog(newStatus === 'inactive' ? 'Deactivated business' : 'Reactivated business', biz?.name);
-            // Stay on current page — just re-render
+            // Stay on current page - just re-render
             const area = document.getElementById('content-area');
             if (activeTab === 'businesses') renderBusinesses(area);
             else if (activeTab === 'dashboard') renderSuperDashboard(area);
@@ -3166,14 +3166,14 @@
         }
 
         // ============================================================
-        // ADMIN DASHBOARD — Weekly Sales Chart
+        // ADMIN DASHBOARD - Weekly Sales Chart
         // ============================================================
         //
         // HOW THE CHART WORKS:
         //   • The chart always shows the CURRENT calendar week: Sun 00:00 → Sat 23:59.
-        //   • At Sunday 00:00:00 the week resets — all bars start at zero for the new week.
+        //   • At Sunday 00:00:00 the week resets - all bars start at zero for the new week.
         //   • Each bar slot is keyed to an EXACT calendar date string (YYYY-MM-DD).
-        //     A transaction is counted ONLY on the date it was recorded — never another day.
+        //     A transaction is counted ONLY on the date it was recorded - never another day.
         //   • Future day slots (after today) always show 0 and are rendered greyed-out.
         //   • Today's bar grows live as each new transaction is processed.
         //   • The scale (max height) is recalculated fresh every update so bars are
@@ -3193,12 +3193,12 @@
         /**
          * Build the 7-slot week array for the current calendar week (Sun→Sat).
          * Each slot contains:
-         *   ds        — the exact YYYY-MM-DD local date string for that slot
-         *   day       — short day name ('Sun', 'Mon', …)
-         *   dateLabel — display label ('DD/MM')
-         *   isToday   — true only for the current day slot
-         *   isFuture  — true for slots after today (always amount = 0)
-         *   amount    — sum of transaction amounts whose local date === ds
+         *   ds        - the exact YYYY-MM-DD local date string for that slot
+         *   day       - short day name ('Sun', 'Mon', …)
+         *   dateLabel - display label ('DD/MM')
+         *   isToday   - true only for the current day slot
+         *   isFuture  - true for slots after today (always amount = 0)
+         *   amount    - sum of transaction amounts whose local date === ds
          *
          * Transactions are matched by slicing their ISO createdAt to 10 chars
          * AND comparing against the LOCAL date of the slot. Because createdAt is
@@ -3232,7 +3232,7 @@
                 const dateLabel = String(slotDate.getDate()).padStart(2, '0') + '/' +
                     String(slotDate.getMonth() + 1).padStart(2, '0');
 
-                // Amount is ZERO for future slots — bucket lookup otherwise
+                // Amount is ZERO for future slots - bucket lookup otherwise
                 const amount = isFuture ? 0 : (bucket[ds] || 0);
 
                 return { dayName, dateLabel, ds, amount, isFuture, isToday };
@@ -3250,7 +3250,7 @@
         /**
          * Live-updates the bar heights and stat card values in-place.
          * Called immediately after every transaction AND by the BroadcastChannel /
-         * polling interval. Performs NO DOM re-render — only style mutations.
+         * polling interval. Performs NO DOM re-render - only style mutations.
          */
         function updateDashboardChart() {
             if (!currentUser || currentUser.role !== 'admin') return;
@@ -3598,7 +3598,7 @@
                   <td><strong>${c.name}</strong></td>
                   <td class="text-muted">${c.email}</td>
                   <td>${c.contact || '-'}</td>
-                  <td>${loc ? loc.name : '<span class="text-muted">—</span>'}</td>
+                  <td>${loc ? loc.name : '<span class="text-muted">-</span>'}</td>
                   <td><span class="badge ${c.status === 'active' ? 'badge-green' : 'badge-red'}">${c.status}</span></td>
                   <td><div class="td-actions">
                     <button class="btn btn-sm btn-outline" onclick="openCashierModal('${c.id}')">${Icon.edit}</button>
@@ -3618,7 +3618,7 @@
             const store = getStore();
             const c = cashierId ? store.users.find(u => u.id === cashierId) : null;
             const locations = store.locations.filter(l => l.businessId === currentUser.businessId);
-            const locOptions = `<option value="">— No Location —</option>` + locations.map(l => `<option value="${l.id}" ${c?.locationId === l.id ? 'selected' : ''}>${sanitize(l.name)}</option>`).join('');
+            const locOptions = `<option value="">- No Location -</option>` + locations.map(l => `<option value="${l.id}" ${c?.locationId === l.id ? 'selected' : ''}>${sanitize(l.name)}</option>`).join('');
 
             openModal(c ? 'Edit Cashier' : 'Add Cashier', `
     <div class="form-group"><label class="form-label">Full Name</label><input id="m-c-name" class="form-input" value="${c ? sanitize(c.name) : ''}" placeholder="John Doe"/></div>
@@ -3720,7 +3720,7 @@
                         const cashiers = store.users.filter(u => u.businessId === currentUser.businessId && u.role === 'cashier' && u.locationId === l.id);
                         return `<tr>
                   <td><strong>${l.name}</strong></td>
-                  <td class="text-muted">${l.address || '—'}</td>
+                  <td class="text-muted">${l.address || '-'}</td>
                   <td>${cashiers.length}</td>
                   <td><div class="td-actions">
                     <button class="btn btn-sm btn-outline" onclick="openLocationModal('${l.id}')">${Icon.edit}</button>
@@ -3834,7 +3834,7 @@
                 <td><strong>${sanitize(l.userName)}</strong></td>
                 <td><span class="badge badge-gray">${l.role}</span></td>
                 <td>${sanitize(l.action)}</td>
-                <td class="text-muted">${sanitize(l.target || '—')}</td>
+                <td class="text-muted">${sanitize(l.target || '-')}</td>
               </tr>`).join('');
         }
 
@@ -4146,7 +4146,7 @@
                     toast('Amount received is less than the total due.', 'error');
                     return;
                 }
-                // Valid — clear error state
+                // Valid - clear error state
                 if (cashInput) cashInput.classList.remove('invalid');
                 if (errorEl) errorEl.style.display = 'none';
                 window._posAmountReceived = received;
@@ -4181,7 +4181,7 @@
             };
             updateStore(d => ({ ...d, transactions: [...d.transactions, txn] }));
             addAuditLog(`Processed ${type} transaction`, formatCurrency(total));
-            // Immediately grow the dashboard bar for today — no wait for broadcast/poll
+            // Immediately grow the dashboard bar for today - no wait for broadcast/poll
             updateDashboardChart();
             posCart = [];
             const searchInput = document.getElementById('pos-search-input');
@@ -4211,7 +4211,7 @@
         // TRANSACTIONS
         // ============================================================
         let txnFilterPeriod = 'today'; // 'today' | 'week' | 'month' | 'all'
-        // Note: page title says just "Transactions" — the filter buttons below show the active period
+        // Note: page title says just "Transactions" - the filter buttons below show the active period
 
         function renderTransactions(area) {
             const store = getStore();
@@ -4248,8 +4248,8 @@
                     ? `<tr><td colspan="5"><div class="empty-state">No transactions for ${periodLabels[txnFilterPeriod].toLowerCase()}</div></td></tr>`
                     : [...filtered].reverse().map(t => `<tr>
                 <td class="text-muted">${formatDate(t.createdAt)}</td>
-                <td><span class="text-mono" style="font-size:11px;color:var(--gray-500)">${t.receiptId || '—'}</span></td>
-                <td>${sanitize(t.cashierName || '—')}</td>
+                <td><span class="text-mono" style="font-size:11px;color:var(--gray-500)">${t.receiptId || '-'}</span></td>
+                <td>${sanitize(t.cashierName || '-')}</td>
                 <td><strong class="text-mono">${formatCurrency(t.amount)}</strong></td>
                 <td><span class="badge ${t.type === 'cash' ? 'badge-green' : 'badge-blue'}">${t.type}</span></td>
               </tr>`).join('')}
@@ -4313,10 +4313,10 @@
         <tr>
           <td><span class="text-mono" style="font-size:11px;font-weight:700;color:var(--black)">${t.receiptId}</span></td>
           <td class="text-muted">${formatDate(t.createdAt)}</td>
-          <td><strong>${sanitize(t.cashierName || '—')}</strong></td>
-          <td class="text-muted" style="font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${sanitize(t.itemsSummary || '')}">${sanitize(t.itemsSummary || '—')}</td>
+          <td><strong>${sanitize(t.cashierName || '-')}</strong></td>
+          <td class="text-muted" style="font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${sanitize(t.itemsSummary || '')}">${sanitize(t.itemsSummary || '-')}</td>
           <td><span class="badge ${t.type === 'cash' ? 'badge-green' : 'badge-blue'}">${t.type}</span></td>
-          <td class="text-mono" style="color:var(--green)">${t.discount > 0 ? '−' + formatCurrency(t.discount) : '—'}</td>
+          <td class="text-mono" style="color:var(--green)">${t.discount > 0 ? '−' + formatCurrency(t.discount) : '-'}</td>
           <td><strong class="text-mono">${formatCurrency(t.amount)}</strong></td>
           <td><button class="btn btn-sm btn-outline" onclick="viewReceiptDetail('${t.id}')">${Icon.receipt} View</button></td>
         </tr>`).join('');
@@ -4343,7 +4343,7 @@
             const t = store.transactions.find(tx => tx.id === txnId);
             if (!t) return;
             const biz = store.businesses.find(b => b.id === currentUser.businessId);
-            openModal(`Receipt — ${t.receiptId}`, `
+            openModal(`Receipt - ${t.receiptId}`, `
       <div style="font-family:var(--font-mono);padding:8px 0">
         <div style="text-align:center;margin-bottom:20px;padding-bottom:16px;border-bottom:2px dashed var(--gray-200)">
           <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--gray-400);margin-bottom:4px">${sanitize(biz?.name || 'SaleStation')}</div>
@@ -4369,7 +4369,7 @@
         ${t.type === 'cash' && t.amountReceived ? `<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--gray-500);margin-top:4px"><span>Amount Received</span><span class="text-mono">${formatCurrency(t.amountReceived)}</span></div>` : ''}
         ${t.type === 'cash' && t.change != null ? `<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--green);font-weight:700;margin-top:4px"><span>Change</span><span>${formatCurrency(t.change)}</span></div>` : ''}
         <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--gray-500);margin-top:4px">
-          <span>Served by</span><span>${sanitize(t.cashierName || '—')}</span>
+          <span>Served by</span><span>${sanitize(t.cashierName || '-')}</span>
         </div>
         <div style="text-align:center;margin-top:20px;padding-top:16px;border-top:1px dashed var(--gray-200);font-size:11px;color:var(--gray-400)">
           Thank you for your purchase!
@@ -4422,7 +4422,7 @@
                 return;
             }
 
-            // Excel with SheetJS — columns: Date, Amount, Type, Location, Cashier
+            // Excel with SheetJS - columns: Date, Amount, Type, Location, Cashier
             const biz = store.businesses.find(b => b.id === currentUser.businessId);
             const currSym = biz?.currencySymbol || 'R';
             const rows = [['Date', `Amount (${currSym})`, 'Type', 'Location', 'Cashier']];
@@ -4433,8 +4433,8 @@
                     formatDate(t.createdAt),
                     parseFloat(t.amount.toFixed(2)),
                     t.type.toUpperCase(),
-                    location ? location.name : '—',
-                    cashier ? cashier.name : '—'
+                    location ? location.name : '-',
+                    cashier ? cashier.name : '-'
                 ]);
             });
 
@@ -4474,9 +4474,9 @@
             ${txns.length === 0 ? `<tr><td colspan="5"><div class="empty-state">No orders today.</div></td></tr>` :
                     [...txns].reverse().map(t => `<tr>
                 <td class="text-muted">${formatDate(t.createdAt)}</td>
-                <td><span class="text-mono" style="font-size:11px;color:var(--gray-500)">${t.receiptId || '—'}</span></td>
+                <td><span class="text-mono" style="font-size:11px;color:var(--gray-500)">${t.receiptId || '-'}</span></td>
                 <td><strong class="text-mono">${formatCurrency(t.amount)}</strong></td>
-                <td class="text-muted text-sm">${t.itemsSummary || '—'}</td>
+                <td class="text-muted text-sm">${t.itemsSummary || '-'}</td>
                 <td><span class="badge ${t.type === 'cash' ? 'badge-green' : 'badge-blue'}">${t.type}</span></td>
               </tr>`).join('')}
           </tbody>
@@ -4505,7 +4505,7 @@
             const isIntl = biz.currency && biz.currency !== 'ZAR';
             const intlPriceNote = isIntl && limits.price > 0 ? `<div style="font-size:11px;color:var(--blue);margin-top:4px">Your bank converts this from ZAR to ${biz.currency} at the prevailing exchange rate.</div>` : '';
             const daysLeft = st?.daysLeft || 0;
-            const proratedNote = daysLeft > 0 && biz.plan !== 'premium' ? `(~${daysLeft} days remaining on current plan — prorated)` : '';
+            const proratedNote = daysLeft > 0 && biz.plan !== 'premium' ? `(~${daysLeft} days remaining on current plan - prorated)` : '';
 
             let badgeClass = 'badge-gray';
             if (st?.status === 'active') badgeClass = 'badge-green';
@@ -4556,7 +4556,7 @@
           </div>
 
           ${nextPlan ? `<div class="alert alert-blue" style="margin-top:14px">${Icon.alert} Upgrade to <strong>${PLAN_LIMITS[nextPlan]?.label}</strong> scheduled at next renewal (${formatDateShort(sub.expiresAt)})</div>` : ''}
-          ${sub.status === 'cancelled' && st?.active ? `<div class="alert alert-orange" style="margin-top:12px">${Icon.alert} Subscription cancelled — access remains until <strong>${formatDateShort(sub.expiresAt)}</strong>. Renew before that date to avoid losing access.</div>` : ''}
+          ${sub.status === 'cancelled' && st?.active ? `<div class="alert alert-orange" style="margin-top:12px">${Icon.alert} Subscription cancelled - access remains until <strong>${formatDateShort(sub.expiresAt)}</strong>. Renew before that date to avoid losing access.</div>` : ''}
 
           <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap">
             ${biz.plan === 'trial' ? `<button class="btn btn-primary" onclick="handleUpgrade('starter')">Upgrade to Starter</button>` : ''}
@@ -4574,7 +4574,7 @@
         }
 
         function handleUpgrade(targetPlan) {
-            // Fix 1: Guard — trial plan cannot be selected as an upgrade target
+            // Fix 1: Guard - trial plan cannot be selected as an upgrade target
             if (targetPlan === 'trial') { toast('Trial plan is not available as an upgrade option.', 'error'); return; }
             const store = getStore();
             const biz = store.businesses.find(b => b.id === currentUser.businessId);
@@ -4609,7 +4609,7 @@
 
         function completeRenew(newPlan) {
             // Renewal: add new plan's duration on top of any remaining time,
-            // EXCEPT when coming from a trial — trial time is not carried over
+            // EXCEPT when coming from a trial - trial time is not carried over
             const store = getStore();
             const existingSub = store.subscriptions.find(s => s.businessId === currentUser.businessId);
             const biz = store.businesses.find(b => b.id === currentUser.businessId);

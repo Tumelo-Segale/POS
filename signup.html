@@ -1673,6 +1673,12 @@
         }
 
         /* SESSION TIMEOUT WARNING */
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
         #session-warning {
             position: fixed;
             bottom: 70px;
@@ -1788,6 +1794,15 @@
                         </svg></button>
                 </div>
             </div>
+            <div class="form-group">
+                <label class="form-label">Country &amp; Currency <span class="required-star">*</span></label>
+                <select id="reg-currency" class="form-select" onchange="updatePlanPriceDisplay()">
+                    <option value="ZAR|R|South Africa">🇿🇦 South Africa — ZAR (R)</option>
+                    <option value="BWP|P|Botswana">🇧🇼 Botswana — BWP (P)</option>
+                    <option value="LSL|M|Lesotho">🇱🇸 Lesotho — LSL (M)</option>
+                    <option value="NAD|N$|Namibia">🇳🇦 Namibia — NAD (N$)</option>
+                </select>
+            </div>
             <button class="btn btn-primary btn-full btn-lg" style="margin-top:8px" onclick="goToPlanPage()">Next: Select
                 Plan →</button>
             <div class="auth-switch">Already have an account? <a onclick="showPage('login-page')">Login</a></div>
@@ -1814,7 +1829,7 @@
             <div id="plan-trial" class="plan-card" onclick="selectPlan('trial')">
                 <div class="plan-card-header">
                     <span class="plan-name">Trial <span class="plan-badge-tag trial-badge">7-Day Free</span></span>
-                    <span class="plan-price">R0<span>/7 days</span></span>
+                    <span class="plan-price" id="plan-price-trial">R0<span>/7 days</span></span>
                 </div>
                 <ul class="plan-features">
                     <li>Max 1 Cashier</li>
@@ -1828,7 +1843,7 @@
             <div id="plan-starter" class="plan-card selected" onclick="selectPlan('starter')">
                 <div class="plan-card-header">
                     <span class="plan-name">Starter</span>
-                    <span class="plan-price">R200<span>/mo</span></span>
+                    <span class="plan-price" id="plan-price-starter">R200<span>/mo</span></span>
                 </div>
                 <ul class="plan-features">
                     <li>Max 2 Cashiers</li>
@@ -1842,7 +1857,7 @@
             <div id="plan-premium" class="plan-card" onclick="selectPlan('premium')">
                 <div class="plan-card-header">
                     <span class="plan-name">Premium <span class="plan-badge-tag popular-badge">Popular</span></span>
-                    <span class="plan-price">R500<span>/mo</span></span>
+                    <span class="plan-price" id="plan-price-premium">R500<span>/mo</span></span>
                 </div>
                 <ul class="plan-features">
                     <li>Unlimited Cashiers</li>
@@ -2156,8 +2171,19 @@
             wsSimInterval = wsSimInterval || setInterval(() => {
                 if (currentUser && currentUser.businessId) {
                     checkCancelledSubscriptionExpiry(currentUser.businessId);
+                    // Periodic sub enforcement — catches expired subs even if user never leaves POS
+                    if (currentUser.role !== 'super-admin') {
+                        const st = getSubStatus(currentUser.businessId);
+                        if (st && !st.active) {
+                            updateSubStatusBadge();
+                            if (activeTab === 'pos') {
+                                toast('Subscription expired. POS transactions suspended.', 'error');
+                                navigate('subscriptions');
+                            }
+                        }
+                    }
                 }
-            }, 5000);
+            }, 10000);
         }
 
         function broadcastChange(newStore) {
@@ -2288,6 +2314,21 @@
         // ============================================================
         // UTILITIES
         // ============================================================
+        // ============================================================
+        // LOADING STATE HELPERS
+        // ============================================================
+        function setButtonLoading(btn, loading, originalText) {
+            if (!btn) return;
+            if (loading) {
+                btn._origText = btn.innerHTML;
+                btn.innerHTML = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="animation:spin .6s linear infinite"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg> ${originalText || 'Loading...'}`;
+                btn.disabled = true;
+            } else {
+                btn.innerHTML = btn._origText || originalText || btn.innerHTML;
+                btn.disabled = false;
+            }
+        }
+
         function sanitize(str) {
             return String(str).replace(/[<>"'&]/g, c => ({ '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '&': '&amp;' }[c]));
         }
@@ -2296,7 +2337,18 @@
             return String(str).replace(/["'`<>&]/g, '');
         }
 
-        function formatCurrency(n) { return 'R' + Number(n).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+        function getCurrencySymbol() {
+            if (!currentUser || !currentUser.businessId) return 'R';
+            try {
+                const store = getStore();
+                const biz = store.businesses.find(b => b.id === currentUser.businessId);
+                return biz?.currencySymbol || 'R';
+            } catch (e) { return 'R'; }
+        }
+        function formatCurrency(n) {
+            const sym = getCurrencySymbol();
+            return sym + Number(n).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
         function formatDate(iso) { if (!iso) return '-'; return new Date(iso).toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); }
         function formatDateShort(iso) { if (!iso) return '-'; return new Date(iso).toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' }); }
         function uid() { return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`; }
@@ -2382,6 +2434,17 @@
         let selectedPlan = 'starter';
         let activeTab = '';
 
+        function updatePlanPriceDisplay() {
+            const currencyVal = document.getElementById('reg-currency')?.value || 'ZAR|R|South Africa';
+            const sym = currencyVal.split('|')[1] || 'R';
+            const trialEl = document.getElementById('plan-price-trial');
+            const starterEl = document.getElementById('plan-price-starter');
+            const premiumEl = document.getElementById('plan-price-premium');
+            if (trialEl) trialEl.innerHTML = `${sym}0<span>/7 days</span>`;
+            if (starterEl) starterEl.innerHTML = `${sym}${PLAN_LIMITS.starter.price}<span>/mo</span>`;
+            if (premiumEl) premiumEl.innerHTML = `${sym}${PLAN_LIMITS.premium.price}<span>/mo</span>`;
+        }
+
         function goToPlanPage() {
             const bizName = document.getElementById('reg-biz').value.trim();
             const owner = document.getElementById('reg-owner').value.trim();
@@ -2403,6 +2466,7 @@
                 return;
             }
             showPage('register-plan-page');
+            updatePlanPriceDisplay();
         }
 
         function showForgotPassword() {
@@ -2636,9 +2700,11 @@
             const expiry = new Date(Date.now() + dur * 24 * 60 * 60 * 1000).toISOString();
             const normalizedEmail = email.toLowerCase();
 
+            const currencyVal = document.getElementById('reg-currency')?.value || 'ZAR|R|South Africa';
+            const [currencyCode, currencySymbol, country] = currencyVal.split('|');
             updateStore(d => ({
                 ...d,
-                businesses: [...d.businesses, { id: bizId, name: sanitize(bizName), email: normalizedEmail, plan, status: 'active', ownerId, createdAt: now }],
+                businesses: [...d.businesses, { id: bizId, name: sanitize(bizName), email: normalizedEmail, plan, status: 'active', ownerId, createdAt: now, currency: currencyCode, currencySymbol, country }],
                 users: [...d.users, { id: ownerId, name: sanitize(ownerName), email: normalizedEmail, password, role: 'admin', businessId: bizId, status: 'active' }],
                 subscriptions: [...d.subscriptions, { businessId: bizId, plan, status: 'active', expiresAt: expiry }],
                 currentUser: { id: ownerId, name: sanitize(ownerName), email: normalizedEmail, password, role: 'admin', businessId: bizId, status: 'active' }
@@ -2670,8 +2736,13 @@
             navigate(defaultTab);
             initWebSocketSimulation();
             // Restore sidebar collapse state (per user)
-            const collapsed = localStorage.getItem(`sidebar_collapsed_${currentUser.id}`) === 'true';
-            if (collapsed) document.getElementById('sidebar').classList.add('collapsed');
+            if (window.innerWidth > 768) {
+                const collapsed = localStorage.getItem(`sidebar_collapsed_${currentUser.id}`) === 'true';
+                if (collapsed) document.getElementById('sidebar').classList.add('collapsed');
+            } else {
+                const mobileOpen = localStorage.getItem(`sidebar_mobile_open_${currentUser.id}`) === 'true';
+                if (mobileOpen) openMobileSidebar();
+            }
         }
 
         function updateSubStatusBadge() {
@@ -2766,16 +2837,20 @@
         }
 
         function handleHamburger() {
-            if (window.innerWidth <= 768) { openMobileSidebar(); }
-            else {
+            if (window.innerWidth <= 768) {
+                openMobileSidebar();
+                // Save mobile open state
+                try { localStorage.setItem(`sidebar_mobile_open_${currentUser.id}`, 'true'); } catch (e) { }
+            } else {
                 const sb = document.getElementById('sidebar');
                 sb.classList.toggle('collapsed');
-                localStorage.setItem(`sidebar_collapsed_${currentUser.id}`, sb.classList.contains('collapsed'));
+                const isCollapsed = sb.classList.contains('collapsed');
+                try { localStorage.setItem(`sidebar_collapsed_${currentUser.id}`, isCollapsed); } catch (e) { }
             }
         }
         function toggleSidebar() { handleHamburger(); }
         function openMobileSidebar() { document.getElementById('sidebar').classList.add('mobile-open'); document.getElementById('sidebar-overlay').classList.add('open'); }
-        function closeMobileSidebar() { document.getElementById('sidebar').classList.remove('mobile-open'); document.getElementById('sidebar-overlay').classList.remove('open'); }
+        function closeMobileSidebar() { document.getElementById('sidebar').classList.remove('mobile-open'); document.getElementById('sidebar-overlay').classList.remove('open'); try { localStorage.removeItem(`sidebar_mobile_open_${currentUser?.id}`); } catch (e) { } }
 
         function navigate(tab) {
             // Warn if leaving POS with items in the cart
@@ -3373,11 +3448,20 @@
         function openItemModal(itemId) {
             const store = getStore();
             const item = itemId ? store.items.find(i => i.id === itemId) : null;
+            const sym = getCurrencySymbol();
             openModal(item ? 'Edit Item' : 'Add New Item', `
     <div class="form-group"><label class="form-label">Item Name</label><input id="m-item-name" class="form-input" value="${item ? sanitize(item.name) : ''}" placeholder="e.g. Coca Cola 500ml"/></div>
-    <div class="form-group"><label class="form-label">Price (R)</label><input id="m-item-price" class="form-input" type="number" min="0" step="0.01" value="${item ? item.price : ''}" placeholder="0.00"/></div>
-    <button class="btn btn-primary btn-full btn-lg" onclick="saveItem('${safeAttr(itemId || '')}')">${item ? 'Update Item' : 'Add Item'}</button>
+    <div class="form-group"><label class="form-label">Price (${sym})</label><input id="m-item-price" class="form-input" type="number" min="0" step="0.01" value="${item ? item.price : ''}" placeholder="0.00"/></div>
+    <button class="btn btn-primary btn-full btn-lg" id="save-item-btn" onclick="saveItemFromModal('${safeAttr(itemId || '')}')">${item ? 'Update Item' : 'Add Item'}</button>
   `);
+        }
+
+        function saveItemFromModal(itemId) {
+            const btn = document.getElementById('save-item-btn');
+            if (btn) { btn.disabled = true; btn.innerHTML = '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="animation:spin .6s linear infinite"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg> Saving...'; }
+            const result = saveItem(itemId);
+            // If saveItem returned false (validation error), re-enable the button
+            if (result === false && btn) { btn.disabled = false; btn.innerHTML = itemId ? 'Update Item' : 'Add Item'; }
         }
 
         function toggleStockField(cat) { /* category removed */ }
@@ -3385,7 +3469,7 @@
         function saveItem(itemId) {
             const name = document.getElementById('m-item-name').value.trim();
             const price = parseFloat(document.getElementById('m-item-price').value);
-            if (!name || isNaN(price) || price < 0) { toast('Please fill in all fields correctly', 'error'); return; }
+            if (!name || isNaN(price) || price < 0) { toast('Please fill in all fields correctly', 'error'); return false; }
 
             const store = getStore();
             const biz = store.businesses.find(b => b.id === currentUser.businessId);
@@ -3398,7 +3482,7 @@
             } else {
                 const currentItems = store.items.filter(i => i.businessId === currentUser.businessId && i.status === 'active');
                 if (limits.items !== Infinity && currentItems.length >= limits.items) {
-                    toast(`${biz?.plan} plan limit: ${limits.items} items. Upgrade to add more.`, 'error'); return;
+                    toast(`${biz?.plan} plan limit: ${limits.items} items. Upgrade to add more.`, 'error'); return false;
                 }
                 updateStore(d => ({
                     ...d, items: [...d.items, { id: `item-${uid()}`, businessId: currentUser.businessId, name: sanitize(name), price, status: 'active' }]
@@ -3505,7 +3589,7 @@
       <button class="pw-toggle" type="button" onclick="togglePw('m-c-pass',this)"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
     </div>
     ${locations.length > 0 ? `<div class="form-group"><label class="form-label">Assign Location</label><select id="m-c-loc" class="form-select">${locOptions}</select></div>` : ''}
-    <button class="btn btn-primary btn-full btn-lg" onclick="saveCashier('${cashierId || ''}')">${c ? 'Update Cashier' : 'Add Cashier'}</button>
+    <button class="btn btn-primary btn-full btn-lg" id="save-cashier-btn" onclick="this.disabled=true;this.innerHTML='<svg width=\'14\' height=\'14\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' viewBox=\'0 0 24 24\' style=\'animation:spin .6s linear infinite\'><path d=\'M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83\'/></svg> Saving...';saveCashier('${cashierId || ''}')">${c ? 'Update Cashier' : 'Add Cashier'}</button>
   `);
         }
 
@@ -3684,7 +3768,10 @@
             area.innerHTML = `
     <div class="page-header">
       <h2 class="page-title">Audit Logs</h2>
-      <div class="search-box"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--gray-400)"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="audit-search" type="text" placeholder="Search logs..." style="padding-left:30px;height:34px" oninput="filterAuditLogs()" /></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <div class="search-box"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--gray-400)"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="audit-search" type="text" placeholder="Search logs..." style="padding-left:30px;height:34px" oninput="filterAuditLogs()" /></div>
+        <button class="btn btn-outline" onclick="exportAuditLogs()">${Icon.download} Export CSV</button>
+      </div>
     </div>
     <div class="card">
       <div class="table-wrapper">
@@ -3722,6 +3809,19 @@
             ) : logs;
             const tbody = document.getElementById('audit-tbody');
             if (tbody) tbody.innerHTML = renderAuditRows(filtered);
+        }
+
+        function exportAuditLogs() {
+            const store = getStore();
+            const logs = store.auditLogs.filter(l => l.businessId === currentUser.businessId);
+            if (logs.length === 0) { toast('No audit logs to export.', 'error'); return; }
+            const rows = [['Date & Time', 'User', 'Role', 'Action', 'Target']];
+            [...logs].reverse().forEach(l => rows.push([formatDate(l.ts), l.userName, l.role, l.action, l.target || '']));
+            const ws = XLSX.utils.aoa_to_sheet(rows);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Audit Logs');
+            XLSX.writeFile(wb, `audit-logs-${new Date().toISOString().slice(0, 10)}.xlsx`);
+            toast('Audit logs exported.', 'success');
         }
 
         // ============================================================
@@ -3884,8 +3984,15 @@
 
         function handlePOSCheckout() {
             if (posCart.length === 0) return;
+            // Enforce subscription before every POS transaction
+            if (currentUser.role !== 'super-admin' && currentUser.businessId) {
+                const active = enforceSubscription(currentUser.businessId);
+                if (!active) { toast('Subscription expired. Transactions are suspended.', 'error'); navigate('subscriptions'); return; }
+            }
             const subtotal = posCart.reduce((a, c) => a + c.price * c.quantity, 0);
             const typeLabel = posPayMethod === 'card' ? 'Card' : 'Cash';
+            const isCash = posPayMethod === 'cash';
+            const sym = getCurrencySymbol();
             openModal(`Confirm ${typeLabel} Payment`, `
       <div style="padding:8px 0">
         <div style="background:var(--gray-50);border:1px solid var(--gray-100);border-radius:var(--radius);padding:12px;margin-bottom:14px;font-size:13px">
@@ -3896,22 +4003,69 @@
           <label style="font-size:12px;color:var(--gray-500);white-space:nowrap;font-family:var(--font-mono);font-weight:600;text-transform:uppercase;letter-spacing:.06em">Discount</label>
           <input id="discount-val" type="number" min="0" class="form-input" style="height:34px;width:90px" placeholder="0" oninput="updateDiscountPreview(${subtotal})"/>
           <select id="discount-type" class="form-select" style="height:34px;width:70px" onchange="updateDiscountPreview(${subtotal})">
-            <option value="flat">R</option>
+            <option value="flat">${sym}</option>
             <option value="pct">%</option>
           </select>
         </div>
         <div style="display:flex;justify-content:space-between;font-size:20px;font-weight:900;font-family:var(--font-mono);margin-bottom:16px;padding:10px 0;border-top:2px solid var(--black)">
           <span>Total</span><span id="modal-total">${formatCurrency(subtotal)}</span>
         </div>
+        ${isCash ? `
+        <div style="margin-bottom:8px">
+          <label style="display:block;font-size:12px;color:var(--gray-500);font-family:var(--font-mono);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">
+            Amount Received <span style="color:var(--red)">*</span>
+          </label>
+          <input id="cash-received" type="number" min="0" step="0.01" class="form-input" style="height:40px" placeholder="Enter amount given by customer" oninput="updateChangePreview(${subtotal})" autocomplete="off"/>
+          <div id="cash-received-error" style="display:none;font-size:11px;color:var(--red);margin-top:4px;font-family:var(--font-mono)">⚠ Amount received is required for cash transactions.</div>
+        </div>
+        <div id="change-preview" style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;font-family:var(--font-mono);margin-bottom:14px;padding:10px 12px;background:var(--green-bg);border:1px solid #b2d9c3;border-radius:var(--radius);display:none">
+          <span>Change</span><span id="change-amount" style="color:var(--green)">${formatCurrency(0)}</span>
+        </div>` : ''}
         ${posPayMethod === 'card' ? `<div style="font-size:13px;color:var(--gray-500);text-align:center;margin-bottom:12px">Present card to terminal to complete payment</div>` : ''}
         <div style="display:flex;gap:10px;">
           <button class="btn btn-outline btn-lg" style="flex:1" onclick="closeModal()">Cancel</button>
-          <button class="btn btn-primary btn-lg" style="flex:2" onclick="confirmPOSPayment('${posPayMethod}',${subtotal})">
+          <button class="btn btn-primary btn-lg" style="flex:2" id="confirm-payment-btn" onclick="confirmPOSPayment('${posPayMethod}',${subtotal})">
             ${Icon.checkCircle} Confirm ${typeLabel}
           </button>
         </div>
       </div>
     `);
+        }
+
+        function updateChangePreview(subtotal) {
+            const discountVal = parseFloat(document.getElementById('discount-val')?.value) || 0;
+            const dtype = document.getElementById('discount-type')?.value || 'flat';
+            const discount = dtype === 'pct' ? subtotal * (Math.min(discountVal, 100) / 100) : Math.min(discountVal, subtotal);
+            const finalTotal = Math.max(0, subtotal - discount);
+            const cashInput = document.getElementById('cash-received');
+            const received = parseFloat(cashInput?.value) || 0;
+            const change = received - finalTotal;
+            const previewEl = document.getElementById('change-preview');
+            const changeEl = document.getElementById('change-amount');
+            const errorEl = document.getElementById('cash-received-error');
+            // Clear error state as user types a valid positive value
+            if (received > 0 && cashInput) {
+                cashInput.classList.remove('invalid');
+                if (errorEl) errorEl.style.display = 'none';
+            }
+            if (previewEl && changeEl) {
+                if (received > 0) {
+                    previewEl.style.display = 'flex';
+                    if (change >= 0) {
+                        changeEl.textContent = formatCurrency(change);
+                        changeEl.style.color = 'var(--green)';
+                        previewEl.style.background = 'var(--green-bg)';
+                        previewEl.style.borderColor = '#b2d9c3';
+                    } else {
+                        changeEl.textContent = `${formatCurrency(Math.abs(change))} short`;
+                        changeEl.style.color = 'var(--red)';
+                        previewEl.style.background = 'var(--red-bg)';
+                        previewEl.style.borderColor = '#f5c0c4';
+                    }
+                } else {
+                    previewEl.style.display = 'none';
+                }
+            }
         }
 
         function updateDiscountPreview(subtotal) {
@@ -3926,8 +4080,40 @@
         function confirmPOSPayment(type, subtotal) {
             const val = parseFloat(document.getElementById('discount-val')?.value) || 0;
             const dtype = document.getElementById('discount-type')?.value || 'flat';
+            // Store for receipt display
+            window._posLastDiscountType = dtype;
+            window._posLastDiscountVal = val;
             const discount = dtype === 'pct' ? subtotal * (Math.min(val, 100) / 100) : Math.min(val, subtotal);
             const finalTotal = Math.max(0, subtotal - discount);
+            // Cash: amount received is mandatory
+            if (type === 'cash') {
+                const cashInput = document.getElementById('cash-received');
+                const errorEl = document.getElementById('cash-received-error');
+                const receivedRaw = cashInput?.value?.trim();
+                const received = parseFloat(receivedRaw);
+                // Must be entered and be a positive number
+                if (!receivedRaw || isNaN(received) || received <= 0) {
+                    if (cashInput) { cashInput.classList.add('invalid'); cashInput.focus(); }
+                    if (errorEl) errorEl.style.display = 'block';
+                    toast('Please enter the amount received from the customer.', 'error');
+                    return;
+                }
+                // Must cover the total
+                if (received < finalTotal) {
+                    if (cashInput) { cashInput.classList.add('invalid'); cashInput.focus(); }
+                    if (errorEl) { errorEl.textContent = `⚠ Amount received (${formatCurrency(received)}) is less than the total (${formatCurrency(finalTotal)}).`; errorEl.style.display = 'block'; }
+                    toast('Amount received is less than the total due.', 'error');
+                    return;
+                }
+                // Valid — clear error state
+                if (cashInput) cashInput.classList.remove('invalid');
+                if (errorEl) errorEl.style.display = 'none';
+                window._posAmountReceived = received;
+                window._posChange = Math.max(0, received - finalTotal);
+            } else {
+                window._posAmountReceived = null;
+                window._posChange = null;
+            }
             closeModal();
             recordTransaction(finalTotal, type, discount > 0 ? discount : null);
         }
@@ -3944,6 +4130,10 @@
                 cashierName: currentUser.name,
                 amount: total,
                 discount: discount || 0,
+                discountType: window._posLastDiscountType || 'flat',
+                discountPct: window._posLastDiscountType === 'pct' ? (window._posLastDiscountVal || 0) : null,
+                amountReceived: window._posAmountReceived || null,
+                change: window._posChange || null,
                 type,
                 itemsSummary,
                 createdAt: new Date().toISOString(),
@@ -3964,10 +4154,12 @@
     <div style="font-size:13px;font-family:var(--font-mono);color:var(--gray-500);margin-bottom:16px">${receiptId}</div>
     <div style="background:var(--gray-50);border:1px solid var(--gray-100);border-radius:var(--radius);padding:14px;text-align:left;margin-bottom:16px;font-size:13px">
       ${cartSnapshot.map(c => `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--gray-100)"><span>${sanitize(c.name)} ×${c.quantity}</span><span class="text-mono">${formatCurrency(c.price * c.quantity)}</span></div>`).join('')}
-      ${discount ? `<div style="display:flex;justify-content:space-between;padding:3px 0;color:var(--green)"><span>Discount</span><span class="text-mono">−${formatCurrency(discount)}</span></div>` : ''}
+      ${discount ? `<div style="display:flex;justify-content:space-between;padding:3px 0;color:var(--green)"><span>Discount (${window._posLastDiscountType === 'pct' ? window._posLastDiscountVal + '%' : 'flat'})</span><span class="text-mono">−${formatCurrency(discount)}</span></div>` : ''}
       <div style="display:flex;justify-content:space-between;padding-top:8px;font-weight:700"><span>Total</span><span class="text-mono">${formatCurrency(total)}</span></div>
     </div>
     <div style="font-size:12px;color:var(--gray-500);margin-bottom:4px">Payment: <strong>${type === 'cash' ? 'Cash' : 'Card'}</strong></div>
+    ${type === 'cash' && window._posAmountReceived ? `<div style="font-size:12px;color:var(--gray-500);margin-bottom:2px">Amount Received: <strong class="text-mono">${formatCurrency(window._posAmountReceived)}</strong></div>` : ''}
+    ${type === 'cash' && window._posChange != null ? `<div style="font-size:13px;color:var(--green);font-weight:700;margin-bottom:4px">Change: ${formatCurrency(window._posChange)}</div>` : ''}
     <div style="font-size:12px;color:var(--gray-400);margin-bottom:20px">Served by: ${sanitize(currentUser.name)}</div>
     <button class="btn btn-primary btn-full btn-lg" onclick="closeModal()">${Icon.checkCircle} Done</button>
   </div>
@@ -4125,7 +4317,7 @@
             }).join('')}
         </div>
         ${t.discount > 0 ? `<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--green);padding:4px 0">
-          <span>Discount</span><span>−${formatCurrency(t.discount)}</span>
+          <span>Discount${t.discountType ? ' (' + (t.discountType === 'pct' ? (t.discountPct || '') + '%' : 'flat') + ')' : ''}</span><span>−${formatCurrency(t.discount)}</span>
         </div>` : ''}
         <div style="display:flex;justify-content:space-between;font-size:18px;font-weight:900;padding:12px 0;border-top:2px solid var(--black);margin-top:8px">
           <span>TOTAL</span><span>${formatCurrency(t.amount)}</span>
@@ -4133,6 +4325,8 @@
         <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--gray-500);margin-top:8px">
           <span>Payment</span><span style="font-weight:700;text-transform:uppercase">${t.type === 'cash' ? 'Cash' : 'Card'}</span>
         </div>
+        ${t.type === 'cash' && t.amountReceived ? `<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--gray-500);margin-top:4px"><span>Amount Received</span><span class="text-mono">${formatCurrency(t.amountReceived)}</span></div>` : ''}
+        ${t.type === 'cash' && t.change != null ? `<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--green);font-weight:700;margin-top:4px"><span>Change</span><span>${formatCurrency(t.change)}</span></div>` : ''}
         <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--gray-500);margin-top:4px">
           <span>Served by</span><span>${sanitize(t.cashierName || '—')}</span>
         </div>
@@ -4441,7 +4635,8 @@
         function handleCancelSub() {
             const store = getStore();
             const sub = store.subscriptions.find(s => s.businessId === currentUser.businessId);
-            confirm2('Cancel Subscription', `Your plan stays active until ${formatDateShort(sub.expiresAt)}. Cancel anyway?`).then(ok => {
+            const cancelWarning = `Your plan stays active until ${formatDateShort(sub.expiresAt)}, then access is immediately revoked (no grace period applies to cancelled subscriptions). Cancel anyway?`;
+            confirm2('Cancel Subscription', cancelWarning).then(ok => {
                 if (!ok) return;
                 // Fix 10: Immediately disable the cancel button to prevent double-click flicker
                 const cancelBtn = document.querySelector('[onclick="handleCancelSub()"]');

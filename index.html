@@ -1165,7 +1165,7 @@
                 one streamlined platform built for Southern Africa.</p>
             <div class="hero-cta">
                 <a href="signup.html" class="btn btn-primary btn-lg">Start 7-Day Free Trial</a>
-                <a href="#platform" class="btn btn-outline btn-lg hide-mobile">Explore Platform</a>
+                <a href="#platform" class="btn btn-outline btn-lg">Explore Platform</a>
             </div>
 
             <!-- DASHBOARD SCREENSHOT -->
@@ -1707,14 +1707,27 @@
         }
 
         // ── CONTACT FORM → sends to super admin messages store ──
+        let _lastContactSend = 0;
+        const CONTACT_COOLDOWN_MS = 20000; // 20 seconds
+
         function sendContactMessage() {
             const nameEl = document.getElementById('contact-name');
             const emailEl = document.getElementById('contact-email');
             const msgEl = document.getElementById('contact-message');
+            const sendBtn = document.querySelector('[onclick="sendContactMessage()"]');
 
             const name = nameEl.value.trim();
             const email = emailEl.value.trim();
             const msg = msgEl.value.trim();
+
+            // Rate-limit check
+            const now = Date.now();
+            const elapsed = now - _lastContactSend;
+            if (_lastContactSend > 0 && elapsed < CONTACT_COOLDOWN_MS) {
+                const secsLeft = Math.ceil((CONTACT_COOLDOWN_MS - elapsed) / 1000);
+                toast(`Please wait ${secsLeft}s before sending another message.`, 'error');
+                return;
+            }
 
             // Validation
             let valid = true;
@@ -1743,12 +1756,37 @@
                 ]
             }));
 
+            // Record send time and start cooldown on button
+            _lastContactSend = Date.now();
+
             // Clear form
             nameEl.value = '';
             emailEl.value = '';
             msgEl.value = '';
 
             toast('Message sent! We\'ll get back to you within 24 hours.', 'success');
+
+            // Disable button for cooldown duration
+            if (sendBtn) {
+                sendBtn.disabled = true;
+                sendBtn.style.opacity = '0.5';
+                sendBtn.style.cursor = 'not-allowed';
+                let remaining = Math.ceil(CONTACT_COOLDOWN_MS / 1000);
+                const origText = sendBtn.textContent;
+                sendBtn.textContent = `Wait ${remaining}s`;
+                const interval = setInterval(() => {
+                    remaining--;
+                    if (remaining <= 0) {
+                        clearInterval(interval);
+                        sendBtn.disabled = false;
+                        sendBtn.style.opacity = '';
+                        sendBtn.style.cursor = '';
+                        sendBtn.textContent = origText;
+                    } else {
+                        sendBtn.textContent = `Wait ${remaining}s`;
+                    }
+                }, 1000);
+            }
         }
 
         // ── ACTIVE SECTION SCROLL-SPY ──

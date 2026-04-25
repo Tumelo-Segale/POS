@@ -1134,6 +1134,26 @@
             }
         }
 
+        @keyframes posItemFlash {
+            0% {
+                background: var(--black);
+                border-color: var(--black);
+                transform: scale(.97);
+            }
+
+            60% {
+                background: var(--gray-100);
+                border-color: var(--gray-400);
+                transform: scale(1);
+            }
+
+            100% {
+                background: var(--white);
+                border-color: var(--gray-400);
+                transform: scale(1);
+            }
+        }
+
         .pos-item-btn {
             background: var(--white);
             border: 1px solid var(--gray-400);
@@ -1144,12 +1164,18 @@
             transition: all .15s;
             display: flex;
             flex-direction: column;
-            gap: 6px
+            gap: 6px;
+            position: relative;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .pos-item-btn:hover {
             border-color: var(--black);
             background: var(--gray-50)
+        }
+
+        .pos-item-btn.flash {
+            animation: posItemFlash .35s ease forwards;
         }
 
         .pos-item-name {
@@ -1963,7 +1989,15 @@
     <!-- Toast Container -->
     <div id="toast-container"></div>
     <!-- Session Warning -->
-    <div id="session-warning">⚠ Session expiring soon. Move the mouse to stay logged in.</div>
+    <div id="session-warning">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+            <span>⚠ Session expiring in <strong id="session-countdown">2:00</strong></span>
+            <button onclick="resetSessionTimer();document.getElementById('session-warning').classList.remove('show')"
+                style="background:var(--black);color:var(--white);border:none;border-radius:2px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:var(--font-main)">
+                Stay Logged In
+            </button>
+        </div>
+    </div>
 
     <script>
         // ============================================================
@@ -2268,10 +2302,12 @@
         // ============================================================
         let sessionTimer = null;
         let sessionWarnTimer = null;
+        let sessionCountdownInterval = null;
 
         function resetSessionTimer() {
             clearTimeout(sessionTimer);
             clearTimeout(sessionWarnTimer);
+            clearInterval(sessionCountdownInterval);
             // Fix 18: Don't fire session warning on the login screen (no user logged in)
             if (!currentUser) {
                 document.getElementById('session-warning').classList.remove('show');
@@ -2280,12 +2316,27 @@
             // Also suppress if the app container is hidden (we're on the auth screen)
             if (document.getElementById('app-container')?.classList.contains('hidden')) return;
             document.getElementById('session-warning').classList.remove('show');
-            // Warn at 28 min
+            // Warn at 28 min — show countdown for the final 2 minutes
             sessionWarnTimer = setTimeout(() => {
                 document.getElementById('session-warning').classList.add('show');
+                // Start countdown from 2:00
+                let secsLeft = 120;
+                function updateCountdown() {
+                    const m = Math.floor(secsLeft / 60);
+                    const s = secsLeft % 60;
+                    const el = document.getElementById('session-countdown');
+                    if (el) el.textContent = `${m}:${String(s).padStart(2, '0')}`;
+                    secsLeft--;
+                }
+                updateCountdown();
+                sessionCountdownInterval = setInterval(() => {
+                    if (secsLeft < 0) { clearInterval(sessionCountdownInterval); return; }
+                    updateCountdown();
+                }, 1000);
             }, 28 * 60 * 1000);
             // Logout at 30 min
             sessionTimer = setTimeout(() => {
+                clearInterval(sessionCountdownInterval);
                 forceLogout('Session expired. Logging out.');
             }, 30 * 60 * 1000);
         }
@@ -2547,6 +2598,8 @@
             if (wsSimInterval) clearInterval(wsSimInterval);
             clearTimeout(sessionTimer);
             clearTimeout(sessionWarnTimer);
+            clearInterval(sessionCountdownInterval);
+            document.getElementById('session-warning').classList.remove('show');
             updateStore(d => ({ ...d, currentUser: null }));
             currentUser = null;
             activeTab = '';
@@ -3044,49 +3097,56 @@
   `;
         }
 
-        function viewBizDetails(bizId) {
-            // Fix 15: Super admin drill-down view for a business's transactions and items
-            const store = getStore();
-            const biz = store.businesses.find(b => b.id === bizId);
-            const items = store.items.filter(i => i.businessId === bizId);
-            const txns = store.transactions.filter(t => t.businessId === bizId).slice(-20).reverse();
-            openModal(`${sanitize(biz?.name || '')} - Details`, `
-    <div style="margin-bottom:16px">
-      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gray-400);font-family:var(--font-mono);margin-bottom:8px">Items (${items.length})</div>
-      ${items.length === 0 ? '<div class="empty-state" style="padding:12px">No items</div>' :
-                    `<div style="max-height:140px;overflow-y:auto;border:1px solid var(--gray-100);border-radius:var(--radius)">
-          <table style="width:100%;font-size:12px"><thead><tr style="border-bottom:1px solid var(--gray-100)"><th style="padding:6px 10px;color:var(--gray-400)">Name</th><th style="padding:6px 10px;color:var(--gray-400)">Price</th><th style="padding:6px 10px;color:var(--gray-400)">Status</th></tr></thead><tbody>
-          ${items.map(i => `<tr style="border-bottom:1px solid var(--gray-50)"><td style="padding:6px 10px">${sanitize(i.name)}</td><td style="padding:6px 10px;font-family:var(--font-mono)">${formatCurrency(i.price)}</td><td style="padding:6px 10px"><span class="badge ${i.status === 'active' ? 'badge-green' : 'badge-red'}" style="font-size:9px">${i.status}</span></td></tr>`).join('')}
-          </tbody></table></div>`}
-    </div>
-    <div>
-      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gray-400);font-family:var(--font-mono);margin-bottom:8px">Recent Transactions (last 20)</div>
-      ${txns.length === 0 ? '<div class="empty-state" style="padding:12px">No transactions</div>' :
-                    `<div style="max-height:160px;overflow-y:auto;border:1px solid var(--gray-100);border-radius:var(--radius)">
-          <table style="width:100%;font-size:12px"><thead><tr style="border-bottom:1px solid var(--gray-100)"><th style="padding:6px 10px;color:var(--gray-400)">Date</th><th style="padding:6px 10px;color:var(--gray-400)">Cashier</th><th style="padding:6px 10px;color:var(--gray-400)">Amount</th><th style="padding:6px 10px;color:var(--gray-400)">Type</th></tr></thead><tbody>
-          ${txns.map(t => `<tr style="border-bottom:1px solid var(--gray-50)"><td style="padding:6px 10px;color:var(--gray-500)">${formatDateShort(t.createdAt)}</td><td style="padding:6px 10px">${sanitize(t.cashierName || '')}</td><td style="padding:6px 10px;font-family:var(--font-mono);font-weight:700">${formatCurrency(t.amount)}</td><td style="padding:6px 10px"><span class="badge ${t.type === 'cash' ? 'badge-green' : 'badge-blue'}" style="font-size:9px">${t.type}</span></td></tr>`).join('')}
-          </tbody></table></div>`}
-    </div>
-    <button class="btn btn-outline btn-full" style="margin-top:16px" onclick="closeModal()">Close</button>
-  `);
-        }
+
+        let bizSearchQuery = '';
+        let bizStatusFilter = 'all';
 
         function renderBusinesses(area) {
             const store = getStore();
+            let businesses = store.businesses;
+
+            // Apply search filter
+            const q = bizSearchQuery.toLowerCase();
+            if (q) businesses = businesses.filter(b =>
+                b.name.toLowerCase().includes(q) ||
+                b.email.toLowerCase().includes(q) ||
+                (b.country || '').toLowerCase().includes(q)
+            );
+
+            // Apply status filter
+            if (bizStatusFilter !== 'all') businesses = businesses.filter(b => b.status === bizStatusFilter);
+
             area.innerHTML = `
     <div class="page-header"><h2 class="page-title">Registered Businesses</h2></div>
+    <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+      <div style="position:relative;flex:1;min-width:200px;max-width:340px">
+        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--gray-400);pointer-events:none"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" placeholder="Search name, email or country..." value="${sanitize(bizSearchQuery)}"
+          oninput="bizSearchQuery=this.value;renderBusinesses(document.getElementById('content-area'))"
+          style="width:100%;height:36px;padding:0 12px 0 32px;border:1px solid var(--gray-200);border-radius:var(--radius);font-family:var(--font-main);font-size:13px;outline:none;background:var(--white);color:var(--black);transition:border-color .15s"
+          onfocus="this.style.borderColor='var(--black)'" onblur="this.style.borderColor='var(--gray-200)'" />
+      </div>
+      <div style="display:flex;gap:6px">
+        ${['all', 'active', 'inactive'].map(f => `
+          <button class="btn btn-sm ${bizStatusFilter === f ? 'btn-primary' : 'btn-outline'}"
+            onclick="bizStatusFilter='${f}';renderBusinesses(document.getElementById('content-area'))">
+            ${f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
+          </button>`).join('')}
+      </div>
+      <span style="font-size:12px;color:var(--gray-400);font-family:var(--font-mono);margin-left:auto">${businesses.length} of ${store.businesses.length}</span>
+    </div>
     <div class="card">
       <div class="table-wrapper">
         <table>
           <thead><tr><th>Business</th><th>Email</th><th>Cashiers</th><th>Plan</th><th>Status</th><th>Sub</th><th>Actions</th></tr></thead>
           <tbody>
-            ${store.businesses.length === 0 ? `<tr><td colspan="7"><div class="empty-state">No businesses registered yet</div></td></tr>` :
-                    store.businesses.map(b => {
+            ${businesses.length === 0 ? `<tr><td colspan="7"><div class="empty-state">${store.businesses.length === 0 ? 'No businesses registered yet' : 'No businesses match your search'}</div></td></tr>` :
+                    businesses.map(b => {
                         const cashiersCount = store.users.filter(u => u.businessId === b.id && u.role === 'cashier').length;
                         const st = getSubStatus(b.id);
                         return `<tr>
-                  <td><strong>${b.name}</strong></td>
-                  <td class="text-muted">${b.email}</td>
+                  <td><strong>${sanitize(b.name)}</strong></td>
+                  <td class="text-muted">${sanitize(b.email)}</td>
                   <td>${cashiersCount}</td>
                   <td><span class="badge badge-gray">${b.plan}</span></td>
                   <td><span class="badge ${b.status === 'active' ? 'badge-green' : 'badge-red'}">${b.status}</span></td>
@@ -3958,6 +4018,11 @@
 
         function addToCartById(btn) {
             const id = btn.dataset.id;
+            // Visual feedback: flash the button
+            btn.classList.remove('flash');
+            void btn.offsetWidth; // force reflow to restart animation
+            btn.classList.add('flash');
+            btn.addEventListener('animationend', () => btn.classList.remove('flash'), { once: true });
             addToCart(id);
         }
 

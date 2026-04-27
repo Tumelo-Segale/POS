@@ -2711,7 +2711,7 @@
                 if (_biz && _biz.currency && _biz.currency !== 'ZAR') {
                     isNonZAR = true;
                     localCurrencyNote = `<div style="background:var(--blue-bg);border:1px solid #c0d1f5;border-radius:var(--radius);padding:10px 12px;margin-bottom:16px;font-size:12px;color:var(--blue);text-align:left">
-                        <strong>ℹ International Payment Note:</strong> This subscription is billed in ZAR (South African Rand). Your bank will convert <strong>${zarPrice}</strong> to your local currency (${_biz.currency}) at the prevailing exchange rate at the time of payment.
+                        <strong>International Payment Note:</strong> This subscription is billed in ZAR (South African Rand). Your bank will convert <strong>${zarPrice}</strong> to your local currency (${_biz.currency}) at the prevailing exchange rate at the time of payment.
                     </div>`;
                 }
             } else {
@@ -2722,7 +2722,7 @@
                     if (parts[0] && parts[0] !== 'ZAR') {
                         isNonZAR = true;
                         localCurrencyNote = `<div style="background:var(--blue-bg);border:1px solid #c0d1f5;border-radius:var(--radius);padding:10px 12px;margin-bottom:16px;font-size:12px;color:var(--blue);text-align:left">
-                            <strong>ℹ International Payment Note:</strong> All SaleStation subscriptions are billed in ZAR (South African Rand). Your bank will convert <strong>${zarPrice}</strong> to your local currency (${parts[0]}) at the prevailing exchange rate at the time of payment.
+                            <strong>International Payment Note:</strong> All SaleStation subscriptions are billed in ZAR (South African Rand). Your bank will convert <strong>${zarPrice}</strong> to your local currency (${parts[0]}) at the prevailing exchange rate at the time of payment.
                         </div>`;
                     }
                 }

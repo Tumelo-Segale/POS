@@ -3685,16 +3685,28 @@
     <div class="form-group"><label class="form-label">Email Address</label><input id="m-c-email" class="form-input" type="email" value="${c ? c.email : ''}" placeholder="john@shop.com"/></div>
     <div class="form-group"><label class="form-label">Contact Number</label><input id="m-c-contact" class="form-input" value="${c ? (c.contact || '') : ''}" placeholder="012 345 6789"/></div>
     <div class="form-group">
-      <label class="form-label">${c ? 'New Password' : 'Password'}</label>
+      <label class="form-label">${c ? 'New Password' : 'Password'} ${c ? '' : '<span style="color:var(--red)">*</span>'}</label>
       <div class="pw-wrap"><input id="m-c-pass" class="form-input" type="password" placeholder="${c ? 'Leave blank to keep current' : '••••••••'}"/>
       <button class="pw-toggle" type="button" onclick="togglePw('m-c-pass',this)"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
     </div>
     ${locations.length > 0 ? `<div class="form-group"><label class="form-label">Assign Location</label><select id="m-c-loc" class="form-select">${locOptions}</select></div>` : ''}
-    <button class="btn btn-primary btn-full btn-lg" id="save-cashier-btn" onclick="this.disabled=true;this.innerHTML='<svg width=\'14\' height=\'14\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' viewBox=\'0 0 24 24\' style=\'animation:spin .6s linear infinite\'><path d=\'M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83\'/></svg> Saving...';saveCashier('${cashierId || ''}')">${c ? 'Update Cashier' : 'Add Cashier'}</button>
+    <button class="btn btn-primary btn-full btn-lg" id="save-cashier-btn" onclick="saveCashier('${cashierId || null}')">${c ? 'Update Cashier' : 'Add Cashier'}</button>
   `);
         }
 
         function saveCashier(cashierId) {
+            // Normalize: treat the string 'null' (from template literal) as falsy
+            if (cashierId === 'null' || cashierId === '' || cashierId === undefined) cashierId = null;
+
+            const btn = document.getElementById('save-cashier-btn');
+            const spinnerHTML = '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="animation:spin .6s linear infinite"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg> Saving...';
+            const origLabel = btn ? btn.innerHTML : '';
+
+            function resetBtn() {
+                if (btn) { btn.disabled = false; btn.innerHTML = origLabel; }
+            }
+            if (btn) { btn.disabled = true; btn.innerHTML = spinnerHTML; }
+
             const name = document.getElementById('m-c-name').value.trim();
             const email = document.getElementById('m-c-email').value.trim().toLowerCase();
             const contact = document.getElementById('m-c-contact').value.trim();
@@ -3702,26 +3714,31 @@
             const locEl = document.getElementById('m-c-loc');
             const locationId = locEl ? locEl.value : '';
 
-            if (!name || !email) { toast('Name and email are required', 'error'); return; }
+            if (!name || !email) { toast('Name and email are required', 'error'); resetBtn(); return; }
+            if (!email.includes('@')) { toast('Please enter a valid email address', 'error'); resetBtn(); return; }
 
             const store = getStore();
             if (cashierId) {
                 const existingCashier = store.users.find(u => u.id === cashierId);
+                if (!existingCashier) { toast('Cashier not found', 'error'); resetBtn(); return; }
+                // Email uniqueness check (excluding self)
+                const dup = store.users.find(u => u.email.toLowerCase() === email && u.id !== cashierId);
+                if (dup) { toast('A user with this email already exists', 'error'); resetBtn(); return; }
                 const updatedPass = password ? password : existingCashier.password;
                 updateStore(d => ({ ...d, users: d.users.map(u => u.id === cashierId ? { ...u, name: sanitize(name), email, contact, password: updatedPass, locationId } : u) }));
                 addAuditLog('Updated cashier', name);
                 toast('Cashier updated', 'success');
             } else {
-                if (!password) { toast('Password is required', 'error'); return; }
+                if (!password) { toast('Password is required for new cashiers', 'error'); resetBtn(); return; }
                 const biz = store.businesses.find(b => b.id === currentUser.businessId);
                 const limits = PLAN_LIMITS[biz?.plan] || PLAN_LIMITS.starter;
                 const cashiers = store.users.filter(u => u.businessId === currentUser.businessId && u.role === 'cashier');
                 if (limits.cashiers !== Infinity && cashiers.length >= limits.cashiers) {
-                    toast(`${biz?.plan} plan limit: ${limits.cashiers} cashier(s). Upgrade to add more.`, 'error'); return;
+                    toast(`${biz?.plan} plan limit: ${limits.cashiers} cashier(s). Upgrade to add more.`, 'error'); resetBtn(); return;
                 }
                 // Email uniqueness
-                if (store.users.find(u => u.email.toLowerCase() === email.toLowerCase())) {
-                    toast('A user with this email already exists', 'error'); return;
+                if (store.users.find(u => u.email.toLowerCase() === email)) {
+                    toast('A user with this email already exists', 'error'); resetBtn(); return;
                 }
                 updateStore(d => ({
                     ...d, users: [...d.users, { id: `cashier-${uid()}`, businessId: currentUser.businessId, name: sanitize(name), email, contact, password, role: 'cashier', status: 'active', locationId }]
@@ -4836,6 +4853,7 @@
             const email = document.getElementById('s-email').value.trim().toLowerCase();
             const pass = document.getElementById('s-pass').value;
             if (!name || !email) { toast('Name and email are required', 'error'); return; }
+            if (!email.includes('@')) { toast('Please enter a valid email address', 'error'); return; }
 
             const store = getStore();
             // Email uniqueness check (excluding self)

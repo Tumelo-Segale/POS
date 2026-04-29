@@ -2581,10 +2581,23 @@
 
             if (user.businessId) {
                 const biz = store.businesses.find(b => b.id === user.businessId);
-                if (biz && biz.status === 'inactive') { toast('Your business account is inactive. Contact support.', 'error'); return; }
-                // Check subscription expiry
-                const active = enforceSubscription(user.businessId);
-                if (!active) { toast('Subscription expired. Your business has been suspended.', 'error'); return; }
+                if (biz && biz.status === 'inactive') {
+                    // Check if it's inactive due to subscription expiry (not admin suspension)
+                    const subStatus = getSubStatus(user.businessId);
+                    if (subStatus !== null && !subStatus.active) {
+                        // Subscription expired — show plan selection modal (no trial)
+                        showLoginSubscriptionModal(user, biz);
+                        return;
+                    }
+                    toast('Your business account is inactive. Contact support.', 'error');
+                    return;
+                }
+                // Check subscription expiry for active businesses
+                const st = getSubStatus(user.businessId);
+                if (st && !st.active) {
+                    showLoginSubscriptionModal(user, biz);
+                    return;
+                }
             }
 
             updateStore(d => ({ ...d, currentUser: user }));
@@ -2592,6 +2605,105 @@
             document.getElementById('login-email').value = '';
             document.getElementById('login-password').value = '';
             launchApp();
+        }
+
+        function showLoginSubscriptionModal(user, biz) {
+            // Show plan selection modal (paid plans only, no trial)
+            let _loginSelectedPlan = 'starter';
+
+            const featureList = (plan) => {
+                const limits = PLAN_LIMITS[plan];
+                if (!limits) return '';
+                const features = [
+                    limits.items === Infinity ? 'Unlimited products' : `Up to ${limits.items} products`,
+                    limits.cashiers === Infinity ? 'Unlimited cashiers' : `Up to ${limits.cashiers} cashiers`,
+                    limits.locations === Infinity ? 'Unlimited locations' : `Up to ${limits.locations} location${limits.locations > 1 ? 's' : ''}`,
+                    limits.receipts ? 'Digital receipts' : null,
+                    limits.multiStore ? 'Multi-store support' : null,
+                    limits.auditLogs ? 'Audit logs' : null,
+                    `${limits.durationDays}-day subscription`
+                ].filter(Boolean);
+                return features.map(f => `<li>${f}</li>`).join('');
+            };
+
+            const zarStarterPrice = 'R' + Number(PLAN_LIMITS.starter.price).toLocaleString('en-ZA', { minimumFractionDigits: 2 });
+            const zarPremiumPrice = 'R' + Number(PLAN_LIMITS.premium.price).toLocaleString('en-ZA', { minimumFractionDigits: 2 });
+
+            openModal(`Subscription Required`, `
+  <div style="text-align:center;margin-bottom:20px">
+    <div style="width:44px;height:44px;background:var(--red-bg);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 12px">
+      <svg width="20" height="20" fill="none" stroke="var(--red)" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    </div>
+    <div style="font-size:15px;font-weight:700;font-family:var(--font-mono);margin-bottom:4px">Subscription Expired</div>
+    <div style="font-size:13px;color:var(--gray-500)">Choose a plan to reactivate <strong>${sanitize(biz.name)}</strong> and continue.</div>
+  </div>
+  <div id="login-sub-starter" class="plan-card selected" onclick="selectLoginPlan('starter')" style="cursor:pointer">
+    <div class="plan-card-header">
+      <span class="plan-name">Starter</span>
+      <span class="plan-price">${zarStarterPrice}<span>/mo</span></span>
+    </div>
+    <div style="font-size:10px;color:var(--gray-500);margin-bottom:8px;font-family:var(--font-mono)">Billed in ZAR</div>
+    <ul class="plan-features">${featureList('starter')}</ul>
+  </div>
+  <div id="login-sub-premium" class="plan-card" onclick="selectLoginPlan('premium')" style="cursor:pointer">
+    <div class="plan-card-header">
+      <span class="plan-name">Premium <span class="plan-badge-tag popular-badge">Popular</span></span>
+      <span class="plan-price">${zarPremiumPrice}<span>/mo</span></span>
+    </div>
+    <div style="font-size:10px;color:var(--blue);margin-bottom:8px;font-family:var(--font-mono)">Billed in ZAR • international customers charged in rands</div>
+    <ul class="plan-features">${featureList('premium')}</ul>
+  </div>
+  <div style="display:flex;gap:10px;margin-top:16px">
+    <button class="btn btn-outline btn-lg" style="flex:1" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-primary btn-lg" style="flex:2" id="login-sub-continue-btn">${Icon.paystack} Continue to Payment</button>
+  </div>
+`);
+
+            window._loginSubSelectedPlan = 'starter';
+
+            window.selectLoginPlan = function (plan) {
+                window._loginSubSelectedPlan = plan;
+                ['starter', 'premium'].forEach(p => {
+                    const el = document.getElementById('login-sub-' + p);
+                    if (el) el.classList.toggle('selected', p === plan);
+                });
+            };
+
+            document.getElementById('login-sub-continue-btn').onclick = () => {
+                const plan = window._loginSubSelectedPlan || 'starter';
+                closeModal();
+
+                // Patch completeRenew so the subscription always starts fresh from payment date,
+                // never carrying over any old (expired) remaining time.
+                const _origCompleteRenew = window.completeRenew;
+                window.completeRenew = function (renewedPlan) {
+                    window.completeRenew = _origCompleteRenew; // restore immediately
+
+                    // Fresh start: duration counts from the exact moment of payment
+                    const dur = PLAN_LIMITS[renewedPlan]?.durationDays || 30;
+                    const newExpiry = new Date(Date.now() + dur * 86400000).toISOString();
+
+                    updateStore(d => ({
+                        ...d,
+                        businesses: d.businesses.map(b => b.id === biz.id
+                            ? { ...b, status: 'active', plan: renewedPlan }
+                            : b),
+                        subscriptions: d.subscriptions.map(s => s.businessId === biz.id
+                            ? { ...s, plan: renewedPlan, status: 'active', expiresAt: newExpiry, nextPlan: null }
+                            : s)
+                    }));
+
+                    const freshUser = getStore().users.find(u => u.id === user.id);
+                    currentUser = freshUser || user;
+                    updateStore(d => ({ ...d, currentUser: currentUser }));
+                    document.getElementById('login-email').value = '';
+                    document.getElementById('login-password').value = '';
+                    toast('Subscription renewed! Welcome back.', 'success');
+                    launchApp();
+                };
+
+                simulatePaystack(biz.name, user.name, biz.email || user.email, '', plan, false, null, true);
+            };
         }
 
         function performLogout() {

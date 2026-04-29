@@ -3502,7 +3502,7 @@
                 typeof st.daysLeft === 'number' && st.daysLeft <= 3 && st.daysLeft > 0;
             const subBanner =
                 (st && st.inGrace)
-                    ? `<div class="alert alert-orange mb-20">${Icon.alert} Grace period: ${st.graceLeft} day(s) remaining. Renew your subscription to avoid suspension.</div>`
+                    ? `<div class="alert alert-orange mb-20">${Icon.alert}<b>Grace period:</b>${st.graceLeft} day(s) remaining. Renew your subscription to avoid suspension.</div>`
                     : (st && st.status === 'expired')
                         ? `<div class="alert alert-red mb-20">${Icon.alert} Subscription expired. Functionality is suspended.</div>`
                         : (st && st.status === 'cancelled' && st.active && st.daysLeft <= 3)
@@ -4709,11 +4709,10 @@
             // Trial badge
             if (biz.plan === 'trial') badgeClass = 'badge-accent';
 
-            // For cancelled-but-active: badge label is "Cancelled" (from getSubStatus), show expiry info separately
 
             area.innerHTML = `
     <div class="page-header"><h2 class="page-title">Subscription</h2></div>
-    ${st?.inGrace ? `<div class="alert alert-orange mb-20">${Icon.alert} Grace period: ${st.graceLeft} day(s) remaining. Renew before expiry to keep your account active.</div>` : ''}
+    ${st?.inGrace ? `<div class="alert alert-orange mb-20">${Icon.alert}<b>Grace period:</b>${st.graceLeft} day(s) remaining. Renew before expiry to keep your account active.</div>` : ''}
     ${st?.status === 'expired' ? `<div class="alert alert-red mb-20">${Icon.alert} Subscription expired. All functionality is suspended. Please renew.</div>` : ''}
     ${st?.active && !st?.inGrace && typeof st?.daysLeft === 'number' && st?.daysLeft <= 3 && st?.daysLeft > 0 ? `<div class="alert alert-accent mb-20">${Icon.alert} <strong>Heads up:</strong> Your subscription expires in <strong>${st.daysLeft} day(s)</strong>. Renew before it ends to avoid interruption.</div>` : ''}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:760px" class="sub-grid">

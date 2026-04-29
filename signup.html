@@ -4058,7 +4058,7 @@
         // POS
         // ============================================================
         let posCart = [];
-        // Fix 20: Persist payment method in localStorage between navigations
+        // Fix 20: Persist payment method in localStorage between navigation
         let posPayMethod = (() => {
             try { return localStorage.getItem('ss_pos_pay_method') || 'cash'; } catch (e) { return 'cash'; }
         })();
@@ -4211,7 +4211,7 @@
 
         function setPayMethod(method) {
             posPayMethod = method;
-            // Fix 20: Save to localStorage so the selection persists between navigations
+            // Fix 20: Save to localStorage so the selection persists between navigation
             try { localStorage.setItem('ss_pos_pay_method', method); } catch (e) { }
             document.getElementById('pay-cash').classList.toggle('active', method === 'cash');
             document.getElementById('pay-card').classList.toggle('active', method === 'card');

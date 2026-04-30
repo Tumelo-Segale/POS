@@ -84,7 +84,7 @@
         .auth-card {
             background: var(--white);
             border: 1px solid var(--gray-200);
-            border-radius: 12px;
+            border-radius: var(--radius);
             padding: 48px;
             width: 100%;
             max-width: 480px;
@@ -331,7 +331,7 @@
             gap: 6px;
             padding: 0 16px;
             height: 36px;
-            border-radius: 5px;
+            border-radius: var(--radius);
             font-family: var(--font-main);
             font-size: 13px;
             font-weight: 600;
@@ -578,7 +578,7 @@
             align-items: center;
             gap: 10px;
             padding: 9px 10px;
-            border-radius: 5px;
+            border-radius: var(--radius);
             cursor: pointer;
             color: rgba(255, 255, 255, .45);
             transition: all .15s;
@@ -734,7 +734,8 @@
             background: var(--white);
             border: 1px solid var(--gray-100);
             border-radius: var(--radius);
-            box-shadow: var(--shadow-sm)
+            box-shadow: var(--shadow-sm);
+            margin-bottom: 4px;
         }
 
         .card-header {
@@ -807,7 +808,7 @@
         .stat-card {
             background: var(--white);
             border: 1px solid var(--gray-100);
-            border-radius: 6px;
+            border-radius: var(--radius);
             padding: 16px 20px;
             display: flex;
             align-items: center;
@@ -969,7 +970,7 @@
 
         .modal {
             background: var(--white);
-            border-radius: 8px;
+            border-radius: var(--radius);
             box-shadow: 0 20px 60px rgba(0, 0, 0, .18), 0 4px 16px rgba(0, 0, 0, .08);
             width: 100%;
             max-width: 480px;
@@ -2062,6 +2063,9 @@
     <!-- Accessible live region for error toasts (assertive) -->
     <div id="toast-container-assertive" role="alert" aria-live="assertive" aria-atomic="true"
         style="position:fixed;bottom:-9999px;left:-9999px;width:1px;height:1px;overflow:hidden"></div>
+    <!-- Accessible page-title announcement for screen readers on navigation -->
+    <div id="page-title-announce" role="status" aria-live="polite" aria-atomic="true"
+        style="position:fixed;bottom:-9999px;left:-9999px;width:1px;height:1px;overflow:hidden"></div>
     <!-- Session Warning -->
     <div id="session-warning">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
@@ -2210,9 +2214,9 @@
 
             if (sub.status === 'cancelled') {
                 // Cancelled: still active until expiry date (no grace period)
-                if (now <= expires) return { status: 'cancelled', label: 'Cancelled', badge: 'badge-orange', active: true, inGrace: false, daysLeft, expiresAt: sub.expiresAt };
+                if (now <= expires) return { status: 'cancelled', label: 'Cancelled', badge: 'badge-accent', active: true, inGrace: false, daysLeft, expiresAt: sub.expiresAt };
                 // Past expiry - fully expired, access denied
-                return { status: 'cancelled-expired', label: 'Cancelled', badge: 'badge-red', active: false, inGrace: false };
+                return { status: 'cancelled-expired', label: 'Expired', badge: 'badge-red', active: false, inGrace: false };
             }
             if (now <= expires) return { status: 'active', label: 'Active', badge: 'badge-green', active: true, inGrace: false, daysLeft, expiresAt: sub.expiresAt };
             if (grace > 0 && now <= graceEnd) return { status: 'grace', label: 'Grace Period', badge: 'badge-orange', active: true, inGrace: true, graceLeft };
@@ -2240,17 +2244,13 @@
         }
 
         function applyScheduledUpgrades() {
-            const store = getStore();
             const now = new Date();
             let changed = false;
-            // SS-020: Read a fresh snapshot of subscriptions inside each map closure
-            // to avoid stamping a stale nextPlan captured before any concurrent tab write.
             const freshStore = getStore();
             const newStore = {
                 ...freshStore,
                 subscriptions: freshStore.subscriptions.map(sub => {
                     if (sub.nextPlan && new Date(sub.expiresAt) <= now) {
-                        // Re-read the latest sub from the freshStore to avoid stale closure value
                         const latestSub = freshStore.subscriptions.find(s => s.businessId === sub.businessId) || sub;
                         if (!latestSub.nextPlan) return sub; // another tab already applied it
                         const plan = latestSub.nextPlan;
@@ -2312,6 +2312,14 @@
         function handleRemoteUpdate(data) {
             // Re-read currentUser from store to avoid stale closure value
             const freshCurrentUserId = currentUser?.id || getStore().currentUser?.id;
+
+            // Sidebar collapse sync across tabs
+            if (data.type === 'SIDEBAR_COLLAPSE' && data.from === currentUser?.id && window.innerWidth > 768) {
+                const sb = document.getElementById('sidebar');
+                if (sb) sb.classList.toggle('collapsed', !!data.collapsed);
+                return;
+            }
+
             if (data.type === 'STORE_UPDATE' && data.from !== freshCurrentUserId) {
                 const elapsed = Date.now() - data.ts;
                 if (elapsed < 1800) { // tight 1.8s window for guaranteed <2s UX
@@ -2393,7 +2401,7 @@
             function startInterval() {
                 if (_pollInterval) return;
                 lastSeen = localStorage.getItem(STORAGE_KEY); // re-sync on resume
-                _pollInterval = setInterval(runPoll, 800); // 800ms poll ensures <2s update propagation
+                _pollInterval = setInterval(runPoll, 1500); // 1.5s poll: balanced update propagation vs CPU
             }
 
             function stopInterval() {
@@ -2461,9 +2469,9 @@
             const now = Date.now();
             if (now - _lastSessionReset > 10000) { _lastSessionReset = now; resetSessionTimer(); }
         }
-        document.addEventListener('mousemove', debouncedResetSession, { passive: true });
-        ['keydown', 'click', 'touchstart'].forEach(e => {
-            document.addEventListener(e, resetSessionTimer, { passive: true });
+        // All activity events use the same debounced handler to avoid per-event jank
+        ['mousemove', 'keydown', 'click', 'touchstart'].forEach(e => {
+            document.addEventListener(e, debouncedResetSession, { passive: true });
         });
 
         // ============================================================
@@ -2473,11 +2481,12 @@
         // LOADING STATE HELPERS
         // ============================================================
         function sanitize(str) {
-            return String(str).replace(/[<>"'&]/g, c => ({ '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '&': '&' }[c]));
+            return String(str).replace(/[<>"'&]/g, c => ({ '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '&': '&amp;' }[c]));
         }
-        // Safe attribute value - strips all quotes/backticks so it can't break out of onclick="..." context
+        // Safely encode a value for use inside a data-* attribute (HTML-attribute safe).
+        // Prefer data-* attributes over inline onclick strings whenever possible.
         function safeAttr(str) {
-            return String(str).replace(/["'`<>&]/g, '');
+            return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         }
 
         function getCurrencySymbol() {
@@ -2782,27 +2791,19 @@
   <p style="font-size:11px;color:var(--gray-400);text-align:center;margin-top:10px">Cancelling this dialog will return you to the login screen. Your account remains locked until a plan is active.</p>
 `);
 
-            window._loginSubSelectedPlan = 'starter';
-
-            window.selectLoginPlan = function (plan) {
-                window._loginSubSelectedPlan = plan;
-                ['starter', 'premium'].forEach(p => {
-                    const el = document.getElementById('login-sub-' + p);
-                    if (el) el.classList.toggle('selected', p === plan);
-                });
-            };
+            _loginSubSelectedPlan = 'starter';
 
             document.getElementById('login-sub-continue-btn').onclick = () => {
-                const plan = window._loginSubSelectedPlan || 'starter';
+                const plan = _loginSubSelectedPlan || 'starter';
                 closeModal();
 
-                // Patch completeRenew so the subscription always starts fresh from payment date,
-                // never carrying over any old (expired) remaining time.
-                const _origCompleteRenew = window.completeRenew;
-                window.completeRenew = function (renewedPlan) {
-                    window.completeRenew = _origCompleteRenew; // restore immediately
+                // For expired-subscription login renewals, start fresh from payment date —
+                // never carry over any old (expired) remaining time.
+                const _origCompleteRenew = completeRenew;
+                // Temporarily override completeRenew just for this payment flow
+                completeRenewOverride = function (renewedPlan) {
+                    completeRenewOverride = null; // one-shot — clear immediately
 
-                    // Fresh start: duration counts from the exact moment of payment
                     const dur = PLAN_LIMITS[renewedPlan]?.durationDays || 30;
                     const newExpiry = new Date(Date.now() + dur * 86400000).toISOString();
 
@@ -3174,16 +3175,18 @@
         function handleHamburger() {
             if (window.innerWidth <= 768) {
                 openMobileSidebar();
-                // Save mobile open state
                 try { localStorage.setItem(`sidebar_mobile_open_${currentUser.id}`, 'true'); } catch (e) { }
             } else {
                 const sb = document.getElementById('sidebar');
                 sb.classList.toggle('collapsed');
                 const isCollapsed = sb.classList.contains('collapsed');
                 try { localStorage.setItem(`sidebar_collapsed_${currentUser.id}`, isCollapsed); } catch (e) { }
+                // Notify other tabs so their sidebar collapses in sync
+                if (channel) {
+                    try { channel.postMessage({ type: 'SIDEBAR_COLLAPSE', collapsed: isCollapsed, from: currentUser?.id }); } catch (e) { }
+                }
             }
         }
-        function toggleSidebar() { handleHamburger(); }
         function openMobileSidebar() { document.getElementById('sidebar').classList.add('mobile-open'); document.getElementById('sidebar-overlay').classList.add('open'); }
         function closeMobileSidebar() { document.getElementById('sidebar').classList.remove('mobile-open'); document.getElementById('sidebar-overlay').classList.remove('open'); try { localStorage.removeItem(`sidebar_mobile_open_${currentUser?.id}`); } catch (e) { } }
 
@@ -3214,6 +3217,9 @@
             const allItems = Object.values(NAV_ITEMS).flat();
             const label = allItems.find(i => i.id === tab)?.label || tab;
             document.getElementById('topbar-title').textContent = label;
+            // Announce new page to screen readers
+            const announcer = document.getElementById('page-title-announce');
+            if (announcer) { announcer.textContent = ''; setTimeout(() => { announcer.textContent = label; }, 50); }
             if (window.innerWidth <= 768) closeMobileSidebar();
             renderContent(tab);
             updateSubStatusBadge();
@@ -3455,7 +3461,7 @@
                   ${!m.read ? `<button class="btn btn-sm btn-outline" onclick="markMessageRead('${m.id}')">${Icon.read} Mark Read</button>` : ''}
                 </div>
               </div>
-              <p style="font-size:13px;color:var(--gray-700)">${m.message}</p>
+              <p style="font-size:13px;color:var(--gray-700)">${sanitize(m.message)}</p>
             </div>
           `).join('')}
       </div>
@@ -3645,7 +3651,7 @@
                 typeof st.daysLeft === 'number' && st.daysLeft <= 3 && st.daysLeft > 0;
             const subBanner =
                 (st && st.inGrace)
-                    ? `<div class="alert alert-orange mb-20">${Icon.alert}<b>Grace period:</b>${st.graceLeft} day(s) remaining. Renew your subscription to avoid suspension.</div>`
+                    ? `<div class="alert alert-orange mb-20"><b>Grace period:</b>${st.graceLeft} day(s) remaining. Renew your subscription to avoid suspension.</div>`
                     : (st && st.status === 'expired')
                         ? `<div class="alert alert-red mb-20">${Icon.alert} Subscription expired. Functionality is suspended.</div>`
                         : (st && st.status === 'cancelled' && st.active && st.daysLeft <= 3)
@@ -3827,7 +3833,12 @@
               </tr>`;
         }
 
+        let _invFilterTimer = null;
         function filterInventoryItems() {
+            clearTimeout(_invFilterTimer);
+            _invFilterTimer = setTimeout(_doFilterInventory, 120);
+        }
+        function _doFilterInventory() {
             const q = (document.getElementById('inv-search')?.value || '').toLowerCase();
             const statusFilter = document.getElementById('inv-status-filter')?.value || 'all';
             const store = getStore();
@@ -3877,7 +3888,7 @@
     <div id="stock-field-row" style="display:${isTracked ? 'block' : 'none'}">
       <div class="form-group"><label class="form-label">Current Stock Quantity</label><input id="m-item-stock" class="form-input" type="number" min="0" step="1" value="${isTracked ? item.stock : 0}" placeholder="0"/></div>
     </div>
-    <button class="btn btn-primary btn-full btn-lg" id="save-item-btn" onclick="saveItemFromModal('${safeAttr(itemId || '')}')">${item ? 'Update Item' : 'Add Item'}</button>
+    <button class="btn btn-primary btn-full btn-lg" id="save-item-btn" onclick="saveItem('${safeAttr(itemId || '')}')">${item ? 'Update Item' : 'Add Item'}</button>
   `);
         }
 
@@ -3885,10 +3896,6 @@
             // SS-027: Show/hide stock quantity field based on tracking selection
             const row = document.getElementById('stock-field-row');
             if (row) row.style.display = val === 'tracked' ? 'block' : 'none';
-        }
-
-        function saveItemFromModal(itemId) {
-            saveItem(itemId);
         }
 
         function saveItem(itemId) {
@@ -4068,11 +4075,6 @@
             // Normalize: treat the string 'null' (from template literal) as falsy
             if (cashierId === 'null' || cashierId === '' || cashierId === undefined) cashierId = null;
 
-            const btn = document.getElementById('save-cashier-btn');
-
-            function resetBtn() { }
-
-
             const name = document.getElementById('m-c-name').value.trim();
             const email = document.getElementById('m-c-email').value.trim().toLowerCase();
             const contact = document.getElementById('m-c-contact').value.trim();
@@ -4080,31 +4082,31 @@
             const locEl = document.getElementById('m-c-loc');
             const locationId = locEl ? locEl.value : '';
 
-            if (!name || !email) { toast('Name and email are required', 'error'); resetBtn(); return; }
-            if (!email.includes('@')) { toast('Please enter a valid email address', 'error'); resetBtn(); return; }
+            if (!name || !email) { toast('Name and email are required', 'error'); return; }
+            if (!email.includes('@')) { toast('Please enter a valid email address', 'error'); return; }
 
             const store = getStore();
             if (cashierId) {
                 const existingCashier = store.users.find(u => u.id === cashierId);
-                if (!existingCashier) { toast('Cashier not found', 'error'); resetBtn(); return; }
+                if (!existingCashier) { toast('Cashier not found', 'error'); return; }
                 // Email uniqueness check (excluding self)
                 const dup = store.users.find(u => u.email.toLowerCase() === email && u.id !== cashierId);
-                if (dup) { toast('A user with this email already exists', 'error'); resetBtn(); return; }
+                if (dup) { toast('A user with this email already exists', 'error'); return; }
                 const updatedPass = password ? password : existingCashier.password;
                 updateStore(d => ({ ...d, users: d.users.map(u => u.id === cashierId ? { ...u, name: sanitize(name), email, contact, password: updatedPass, locationId } : u) }));
                 addAuditLog('Updated cashier', name);
                 toast('Cashier updated', 'success');
             } else {
-                if (!password) { toast('Password is required for new cashiers', 'error'); resetBtn(); return; }
+                if (!password) { toast('Password is required for new cashiers', 'error'); return; }
                 const biz = store.businesses.find(b => b.id === currentUser.businessId);
                 const limits = PLAN_LIMITS[biz?.plan] || PLAN_LIMITS.starter;
                 const cashiers = store.users.filter(u => u.businessId === currentUser.businessId && u.role === 'cashier');
                 if (limits.cashiers !== Infinity && cashiers.length >= limits.cashiers) {
-                    toast(`${biz?.plan} plan limit: ${limits.cashiers} cashier(s). Upgrade to add more.`, 'error'); resetBtn(); return;
+                    toast(`${biz?.plan} plan limit: ${limits.cashiers} cashier(s). Upgrade to add more.`, 'error'); return;
                 }
                 // Email uniqueness
                 if (store.users.find(u => u.email.toLowerCase() === email)) {
-                    toast('A user with this email already exists', 'error'); resetBtn(); return;
+                    toast('A user with this email already exists', 'error'); return;
                 }
                 updateStore(d => ({
                     ...d, users: [...d.users, { id: `cashier-${uid()}`, businessId: currentUser.businessId, name: sanitize(name), email, contact, password, role: 'cashier', status: 'active', locationId }]
@@ -4322,6 +4324,27 @@
             try { return localStorage.getItem('ss_pos_pay_method') || 'cash'; } catch (e) { return 'cash'; }
         })();
         let _posItems = [];
+        // Module-level state for plan selectors (replaces window.* globals)
+        let _renewSelectedPlan = 'starter';
+        let _loginSubSelectedPlan = 'starter';
+        let completeRenewOverride = null; // one-shot override for login-renewal flow
+        let _posActiveCat = 'all'; // active POS category filter (module-level, not window global)
+
+        function selectLoginPlan(plan) {
+            _loginSubSelectedPlan = plan;
+            ['starter', 'premium'].forEach(p => {
+                const el = document.getElementById('login-sub-' + p);
+                if (el) el.classList.toggle('selected', p === plan);
+            });
+        }
+
+        function selectRenewPlan(plan) {
+            _renewSelectedPlan = plan;
+            ['starter', 'premium'].forEach(p => {
+                const el = document.getElementById('renew-plan-' + p);
+                if (el) el.classList.toggle('selected', p === plan);
+            });
+        }
 
         function refreshPOSItemCache() {
             const store = getStore();
@@ -4367,9 +4390,8 @@
             updateCartUI();
             // Fix 20: Restore persisted payment method selection in the UI
             setPayMethod(posPayMethod);
-            // Restore active POS category
-            window._posActiveCat = window._posActiveCat || 'all';
-            document.querySelectorAll('.pos-cat-btn').forEach(b => b.classList.toggle('active-cat', b.dataset.cat === window._posActiveCat));
+            // Restore active POS category (module-level, no window.* needed)
+            document.querySelectorAll('.pos-cat-btn').forEach(b => b.classList.toggle('active-cat', b.dataset.cat === _posActiveCat));
         }
 
         function renderPOSItemsHTML(items) {
@@ -4403,7 +4425,7 @@
                 else if (isLowStock) btnClass += ' pos-item-low-stock';
                 return `
     <button class="${btnClass}" data-id="${safeAttr(item.id)}" data-price="${item.price}" onclick="addToCartById(this)"
-      ${isOutOfStock ? 'style="opacity:0.45;cursor:not-allowed;background:var(--gray-100);border-color:var(--gray-200);"' : ''}>
+      ${isOutOfStock ? 'disabled style="opacity:0.45;cursor:not-allowed;background:var(--gray-100);border-color:var(--gray-200);pointer-events:none;"' : ''}>
       <div class="pos-item-name">${sanitize(item.name)}</div>
       <div class="pos-item-price">${formatCurrency(item.price)}</div>
       ${stockBadge}
@@ -4412,7 +4434,12 @@
             }).join('');
         }
 
+        let _posFilterTimer = null;
         function filterPOSItems() {
+            clearTimeout(_posFilterTimer);
+            _posFilterTimer = setTimeout(_doFilterPOS, 120);
+        }
+        function _doFilterPOS() {
             const q = document.getElementById('pos-search-input').value.toLowerCase();
             const filtered = _posItems.filter(i => i.name.toLowerCase().includes(q));
             document.getElementById('pos-items-grid').innerHTML = renderPOSItemsHTML(filtered);
@@ -5064,7 +5091,7 @@
             let badgeClass = 'badge-gray';
             if (st?.status === 'active') badgeClass = 'badge-green';
             else if (st?.status === 'grace') badgeClass = 'badge-orange';
-            else if (st?.status === 'cancelled') badgeClass = 'badge-orange';
+            else if (st?.status === 'cancelled') badgeClass = 'badge-accent'; // still active, clearly distinct from expired
             else if (st?.status === 'cancelled-expired' || st?.status === 'expired') badgeClass = 'badge-red';
             // Trial badge
             if (biz.plan === 'trial') badgeClass = 'badge-accent';
@@ -5072,7 +5099,7 @@
 
             area.innerHTML = `
     <div class="page-header"><h2 class="page-title">Subscription</h2></div>
-    ${st?.inGrace ? `<div class="alert alert-orange mb-20">${Icon.alert}<b>Grace period:</b>${st.graceLeft} day(s) remaining. Renew before expiry to keep your account active.</div>` : ''}
+    ${st?.inGrace ? `<div class="alert alert-orange mb-20"><b>Grace period:</b>${st.graceLeft} day(s) remaining. Renew before expiry to keep your account active.</div>` : ''}
     ${st?.status === 'expired' ? `<div class="alert alert-red mb-20">${Icon.alert} Subscription expired. All functionality is suspended. Please renew.</div>` : ''}
     ${st?.active && !st?.inGrace && typeof st?.daysLeft === 'number' && st?.daysLeft <= 3 && st?.daysLeft > 0 ? `<div class="alert alert-accent mb-20">${Icon.alert} <strong>Heads up:</strong> Your subscription expires in <strong>${st.daysLeft} day(s)</strong>. Renew before it ends to avoid interruption.</div>` : ''}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:760px" class="sub-grid">
@@ -5111,7 +5138,7 @@
           ${nextPlan ? `<div class="alert alert-blue" style="margin-top:14px">${Icon.alert} Upgrade to <strong>${PLAN_LIMITS[nextPlan]?.label}</strong> scheduled at next renewal (${formatDateShort(sub.expiresAt)})</div>` : ''}
           ${sub.status === 'cancelled' && st?.active ? `<div class="alert alert-orange" style="margin-top:12px">${Icon.alert} Subscription cancelled - access remains until <strong>${formatDateShort(sub.expiresAt)}</strong>. Renew before that date to avoid losing access.</div>` : ''}
 
-          <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap">
+          <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
             ${biz.plan === 'trial' ? `<button class="btn btn-primary" onclick="handleUpgrade('starter')">Upgrade to Starter</button>` : ''}
             ${biz.plan === 'trial' ? `<button class="btn btn-outline" onclick="handleUpgrade('premium')">Upgrade to Premium</button>` : ''}
             ${biz.plan === 'starter' && !nextPlan && sub.status !== 'cancelled' ? `<button class="btn btn-primary" onclick="handleUpgrade('premium')">Upgrade to Premium</button>` : ''}
@@ -5119,6 +5146,7 @@
             ${biz.plan !== 'trial' && st?.active && sub.status !== 'cancelled' ? `<button class="btn btn-danger-outline" onclick="handleCancelSub()">Cancel Subscription</button>` : ''}
             ${st?.status === 'cancelled-expired' || st?.status === 'expired' ? `<button class="btn btn-primary" onclick="handleRenew()">Renew Subscription</button>` : ''}
             ${sub.status === 'cancelled' && st?.active ? `<button class="btn btn-primary" onclick="handleRenew()">Renew Subscription</button>` : ''}
+            ${proratedNote ? `<span style="font-size:11px;color:var(--gray-400);font-family:var(--font-mono)">${proratedNote}</span>` : ''}
           </div>
         </div>
       </div>
@@ -5149,7 +5177,7 @@
         }
 
         function completeUpgrade(targetPlan) {
-            // Fix 9: Prorate remaining days from current subscription cycle
+            // Prorate remaining days from current subscription cycle
             const store = getStore();
             const existingSub = store.subscriptions.find(s => s.businessId === currentUser.businessId);
             const dur = PLAN_LIMITS[targetPlan]?.durationDays || 30;
@@ -5168,13 +5196,38 @@
                     : s)
             }));
             addAuditLog(`Upgraded plan to ${targetPlan}`, '');
-            toast(`Upgraded to ${PLAN_LIMITS[targetPlan]?.label}! Remaining days from current cycle credited.`, 'success');
-            // Rebuild sidebar for premium features
+
+            // Downgrade enforcement: warn if current usage exceeds new plan limits
+            const newLimits = PLAN_LIMITS[targetPlan] || PLAN_LIMITS.starter;
+            const freshStore = getStore();
+            const activeItems = freshStore.items.filter(i => i.businessId === currentUser.businessId && i.status === 'active').length;
+            const activeCashiers = freshStore.users.filter(u => u.businessId === currentUser.businessId && u.role === 'cashier').length;
+            const overLimitWarnings = [];
+            if (newLimits.items !== Infinity && activeItems > newLimits.items) {
+                overLimitWarnings.push(`Active items: ${activeItems} (limit: ${newLimits.items}). Please deactivate ${activeItems - newLimits.items} item(s) to stay within the plan limit.`);
+            }
+            if (newLimits.cashiers !== Infinity && activeCashiers > newLimits.cashiers) {
+                overLimitWarnings.push(`Cashiers: ${activeCashiers} (limit: ${newLimits.cashiers}). Please suspend ${activeCashiers - newLimits.cashiers} cashier(s) to stay within the plan limit.`);
+            }
+            if (overLimitWarnings.length > 0) {
+                overLimitWarnings.forEach(w => toast(`⚠ Over limit: ${w}`, 'error'));
+            } else {
+                toast(`Plan changed to ${PLAN_LIMITS[targetPlan]?.label}! Remaining days from current cycle credited.`, 'success');
+            }
+
+            // Rebuild sidebar for plan feature changes
             buildSidebar();
             setTimeout(() => renderSubscriptions(document.getElementById('content-area')), 400);
         }
 
         function completeRenew(newPlan) {
+            // If a one-shot override was set (e.g., login-renewal flow), use it then clear
+            if (completeRenewOverride) {
+                const fn = completeRenewOverride;
+                completeRenewOverride = null;
+                fn(newPlan);
+                return;
+            }
             // Renewal: add new plan's duration on top of any remaining time,
             // EXCEPT when coming from a trial - trial time is not carried over
             const store = getStore();
@@ -5230,20 +5283,12 @@
     <button class="btn btn-primary btn-lg" style="flex:2" id="renew-continue-btn">Continue to Payment</button>
   </div>
 `);
-            window._renewSelectedPlan = 'starter';
+            _renewSelectedPlan = 'starter';
             document.getElementById('renew-continue-btn').onclick = () => {
-                const plan = window._renewSelectedPlan || 'starter';
+                const plan = _renewSelectedPlan || 'starter';
                 closeModal();
                 simulatePaystack(biz.name, '', biz.email, '', plan, false, null, true);
             };
-        }
-
-        function selectRenewPlan(plan) {
-            window._renewSelectedPlan = plan;
-            ['starter', 'premium'].forEach(p => {
-                const el = document.getElementById('renew-plan-' + p);
-                if (el) el.classList.toggle('selected', p === plan);
-            });
         }
 
         function handleCancelSub() {
@@ -5452,12 +5497,18 @@
                     }
                 });
             });
-            // Intercept browser/tab close when form has data
+            // Intercept browser/tab close when form has data OR when POS has cart items
             window.addEventListener('beforeunload', function (e) {
                 const authVisible = !document.getElementById('auth-container').classList.contains('hidden');
                 if (authVisible && hasAnyInput()) {
                     e.preventDefault();
                     e.returnValue = '';
+                    return;
+                }
+                // Warn if POS has items in cart and user is closing the browser
+                if (posCart && posCart.length > 0) {
+                    e.preventDefault();
+                    e.returnValue = 'You have items in the POS cart. Closing this tab will lose the cart.';
                 }
             });
         })();

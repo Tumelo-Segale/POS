@@ -2738,10 +2738,23 @@
             launchApp();
         }
 
+        // Module-level state for plan selectors — declared early so all login/renewal
+        // functions below can reference them without any temporal-dead-zone risk.
+        let _renewSelectedPlan = 'starter';
+        let _loginSubSelectedPlan = 'starter';
+        let completeRenewOverride = null; // one-shot override for login-renewal flow
+
+        // One-shot callback executed when user confirms plan in the login-renewal modal
+        let _pendingLoginRenewal = null;
+
+        function _handleLoginSubContinue() {
+            if (typeof _pendingLoginRenewal === 'function') {
+                _pendingLoginRenewal();
+            }
+        }
+
         function showLoginSubscriptionModal(user, biz) {
             // Show plan selection modal (paid plans only, no trial)
-            let _loginSelectedPlan = 'starter';
-
             const featureList = (plan) => {
                 const limits = PLAN_LIMITS[plan];
                 if (!limits) return '';
@@ -2786,21 +2799,23 @@
   </div>
   <div style="display:flex;gap:10px;margin-top:16px">
     <button class="btn btn-outline btn-lg" style="flex:1" onclick="closeModal()">Cancel</button>
-    <button class="btn btn-primary btn-lg" style="flex:2" id="login-sub-continue-btn">${Icon.paystack} Continue to Payment</button>
+    <button class="btn btn-primary btn-lg" style="flex:2" onclick="_handleLoginSubContinue()">${Icon.paystack} Continue to Payment</button>
   </div>
   <p style="font-size:11px;color:var(--gray-400);text-align:center;margin-top:10px">Cancelling this dialog will return you to the login screen. Your account remains locked until a plan is active.</p>
 `);
 
+            // Reset plan selection state
             _loginSubSelectedPlan = 'starter';
+            selectLoginPlan('starter');
 
-            document.getElementById('login-sub-continue-btn').onclick = () => {
+            // Set the one-shot pending renewal handler
+            _pendingLoginRenewal = function () {
                 const plan = _loginSubSelectedPlan || 'starter';
+                _pendingLoginRenewal = null; // clear immediately
                 closeModal();
 
                 // For expired-subscription login renewals, start fresh from payment date —
                 // never carry over any old (expired) remaining time.
-                const _origCompleteRenew = completeRenew;
-                // Temporarily override completeRenew just for this payment flow
                 completeRenewOverride = function (renewedPlan) {
                     completeRenewOverride = null; // one-shot — clear immediately
 
@@ -2907,6 +2922,15 @@
         // ============================================================
         const PAYSTACK_PUBLIC_KEY = 'pk_test_328d06e1e7acac75cab1175db7c135a8f1697132';
 
+        // One-shot handler for the payment confirm button inside simulatePaystack modals
+        let _pendingPaystackConfirm = null;
+
+        function _handlePaystackConfirm() {
+            if (typeof _pendingPaystackConfirm === 'function') {
+                _pendingPaystackConfirm();
+            }
+        }
+
         function simulatePaystack(bizName, ownerName, email, password, plan, isUpgrade, onSuccess, isRenew) {
             const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.starter;
             const price = limits.price;
@@ -2932,13 +2956,14 @@
       </div>
       <div style="display:flex;gap:10px;">
         <button class="btn btn-outline btn-lg" style="flex:1" onclick="closeModal()">Cancel</button>
-        <button class="btn btn-primary btn-lg" style="flex:2" id="paystack-confirm-btn">
+        <button class="btn btn-primary btn-lg" style="flex:2" onclick="_handlePaystackConfirm()">
           ${Icon.checkCircle} Activate Trial
         </button>
       </div>
     </div>
   `);
-                document.getElementById('paystack-confirm-btn').onclick = () => {
+                _pendingPaystackConfirm = () => {
+                    _pendingPaystackConfirm = null;
                     closeModal();
                     if (isRenew) { completeRenew(plan); }
                     else if (isUpgrade) { completeUpgrade(plan); }
@@ -2988,14 +3013,15 @@
       </div>
       <div style="display:flex;gap:10px;">
         <button class="btn btn-outline btn-lg" style="flex:1" onclick="closeModal()">Cancel</button>
-        <button class="btn btn-primary btn-lg" style="flex:2" id="paystack-confirm-btn">
+        <button class="btn btn-primary btn-lg" style="flex:2" onclick="_handlePaystackConfirm()">
           ${Icon.paystack} Pay Now
         </button>
       </div>
     </div>
   `);
 
-            document.getElementById('paystack-confirm-btn').onclick = () => {
+            _pendingPaystackConfirm = () => {
+                _pendingPaystackConfirm = null;
                 const handler = PaystackPop.setup({
                     key: PAYSTACK_PUBLIC_KEY,
                     email: email || (currentUser && (getStore().businesses.find(b => b.id === currentUser.businessId)?.email || currentUser.email)) || '',
@@ -4324,10 +4350,6 @@
             try { return localStorage.getItem('ss_pos_pay_method') || 'cash'; } catch (e) { return 'cash'; }
         })();
         let _posItems = [];
-        // Module-level state for plan selectors (replaces window.* globals)
-        let _renewSelectedPlan = 'starter';
-        let _loginSubSelectedPlan = 'starter';
-        let completeRenewOverride = null; // one-shot override for login-renewal flow
         let _posActiveCat = 'all'; // active POS category filter (module-level, not window global)
 
         function selectLoginPlan(plan) {
@@ -5255,6 +5277,14 @@
             setTimeout(() => renderSubscriptions(document.getElementById('content-area')), 400);
         }
 
+        let _pendingRenew = null;
+
+        function _handleRenewContinue() {
+            if (typeof _pendingRenew === 'function') {
+                _pendingRenew();
+            }
+        }
+
         function handleRenew() {
             const store = getStore();
             const biz = store.businesses.find(b => b.id === currentUser.businessId);
@@ -5280,12 +5310,14 @@
   </div>
   <div style="display:flex;gap:10px;margin-top:16px">
     <button class="btn btn-outline btn-lg" style="flex:1" onclick="closeModal()">Cancel</button>
-    <button class="btn btn-primary btn-lg" style="flex:2" id="renew-continue-btn">Continue to Payment</button>
+    <button class="btn btn-primary btn-lg" style="flex:2" onclick="_handleRenewContinue()">Continue to Payment</button>
   </div>
 `);
             _renewSelectedPlan = 'starter';
-            document.getElementById('renew-continue-btn').onclick = () => {
+            selectRenewPlan('starter');
+            _pendingRenew = function () {
                 const plan = _renewSelectedPlan || 'starter';
+                _pendingRenew = null;
                 closeModal();
                 simulatePaystack(biz.name, '', biz.email, '', plan, false, null, true);
             };

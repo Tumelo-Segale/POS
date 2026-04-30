@@ -204,6 +204,11 @@
             justify-content: center;
         }
 
+        .nav-links a.nav-link.active {
+            color: var(--black);
+            font-weight: 600;
+        }
+
         /* Desktop nav links */
         .nav-links {
             display: flex;
@@ -1138,10 +1143,10 @@
                 SaleStation
             </a>
             <div class="nav-links">
-                <a href="#platform" class="nav-link hide-mobile">Platform</a>
-                <a href="#features" class="nav-link hide-mobile">Features</a>
-                <a href="#pricing" class="nav-link hide-mobile">Pricing</a>
-                <a href="#contact" class="nav-link hide-mobile">Contact</a>
+                <a href="#platform" id="desk-nav-platform" class="nav-link hide-mobile">Platform</a>
+                <a href="#features" id="desk-nav-features" class="nav-link hide-mobile">Features</a>
+                <a href="#pricing" id="desk-nav-pricing" class="nav-link hide-mobile">Pricing</a>
+                <a href="#contact" id="desk-nav-contact" class="nav-link hide-mobile">Contact</a>
                 <a href="signup.html" class="btn btn-outline hide-mobile" style="height:36px;font-size:13px">Login</a>
                 <a href="signup.html" class="btn btn-primary hide-mobile" style="height:36px;font-size:13px">Get
                     Started</a>
@@ -1796,21 +1801,24 @@
         // ── ACTIVE SECTION SCROLL-SPY ──
         function setupScrollSpy() {
             const sections = [
-                { id: 'platform', navId: 'nav-platform' },
-                { id: 'features', navId: 'nav-features' },
-                { id: 'pricing', navId: 'nav-pricing' },
-                { id: 'contact', navId: 'nav-contact' },
+                { id: 'platform', sidebarId: 'nav-platform', deskId: 'desk-nav-platform' },
+                { id: 'features', sidebarId: 'nav-features', deskId: 'desk-nav-features' },
+                { id: 'pricing', sidebarId: 'nav-pricing', deskId: 'desk-nav-pricing' },
+                { id: 'contact', sidebarId: 'nav-contact', deskId: 'desk-nav-contact' },
             ];
             function updateActiveNav() {
                 const scrollY = window.scrollY + 100;
-                let active = null;
+                let activeSection = null;
                 for (const s of sections) {
                     const el = document.getElementById(s.id);
-                    if (el && el.offsetTop <= scrollY) active = s.navId;
+                    if (el && el.offsetTop <= scrollY) activeSection = s.id;
                 }
                 sections.forEach(s => {
-                    const nav = document.getElementById(s.navId);
-                    if (nav) nav.classList.toggle('active', s.navId === active);
+                    const sidebar = document.getElementById(s.sidebarId);
+                    const desk = document.getElementById(s.deskId);
+                    const isActive = s.id === activeSection;
+                    if (sidebar) sidebar.classList.toggle('active', isActive);
+                    if (desk) desk.classList.toggle('active', isActive);
                 });
             }
             window.addEventListener('scroll', updateActiveNav, { passive: true });

@@ -84,11 +84,11 @@
         .auth-card {
             background: var(--white);
             border: 1px solid var(--gray-200);
-            border-radius: var(--radius);
+            border-radius: 12px;
             padding: 48px;
             width: 100%;
             max-width: 480px;
-            box-shadow: var(--shadow-lg)
+            box-shadow: 0 8px 40px rgba(0, 0, 0, .10), 0 2px 8px rgba(0, 0, 0, .06);
         }
 
         @media(max-width:480px) {
@@ -196,7 +196,7 @@
         }
 
         .form-input.invalid {
-            border-color: var(--red)
+            border-color: var(--red);
         }
 
         .form-textarea {
@@ -331,15 +331,16 @@
             gap: 6px;
             padding: 0 16px;
             height: 36px;
-            border-radius: var(--radius);
+            border-radius: 5px;
             font-family: var(--font-main);
             font-size: 13px;
             font-weight: 600;
             cursor: pointer;
             border: none;
-            transition: all .15s;
+            transition: all .15s cubic-bezier(.4, 0, .2, 1);
             text-decoration: none;
-            white-space: nowrap
+            white-space: nowrap;
+            letter-spacing: .01em;
         }
 
         .btn:disabled {
@@ -347,13 +348,19 @@
             pointer-events: none
         }
 
+        .btn:active:not(:disabled) {
+            transform: scale(.97);
+        }
+
         .btn-primary {
             background: var(--black);
-            color: var(--white)
+            color: var(--white);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, .2);
         }
 
         .btn-primary:hover {
-            background: var(--gray-800)
+            background: var(--gray-800);
+            box-shadow: 0 3px 10px rgba(0, 0, 0, .18);
         }
 
         .btn-secondary {
@@ -571,7 +578,7 @@
             align-items: center;
             gap: 10px;
             padding: 9px 10px;
-            border-radius: var(--radius);
+            border-radius: 5px;
             cursor: pointer;
             color: rgba(255, 255, 255, .45);
             transition: all .15s;
@@ -581,13 +588,15 @@
         }
 
         .nav-item:hover {
-            background: rgba(255, 255, 255, .06);
-            color: rgba(255, 255, 255, .85)
+            background: rgba(255, 255, 255, .08);
+            color: rgba(255, 255, 255, .88)
         }
 
         .nav-item.active {
             background: var(--white);
-            color: var(--black)
+            color: var(--black);
+            font-weight: 600;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, .12);
         }
 
         .nav-item svg {
@@ -615,6 +624,7 @@
             min-height: 56px;
             background: var(--white);
             border-bottom: 1px solid var(--gray-100);
+            box-shadow: 0 1px 6px rgba(0, 0, 0, .04);
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -797,11 +807,17 @@
         .stat-card {
             background: var(--white);
             border: 1px solid var(--gray-100);
-            border-radius: var(--radius);
+            border-radius: 6px;
             padding: 16px 20px;
             display: flex;
             align-items: center;
-            gap: 14px
+            gap: 14px;
+            transition: box-shadow .18s, transform .18s;
+        }
+
+        .stat-card:hover {
+            box-shadow: 0 4px 16px rgba(0, 0, 0, .07);
+            transform: translateY(-1px);
         }
 
         .stat-icon {
@@ -844,7 +860,8 @@
         }
 
         thead tr {
-            border-bottom: 1px solid var(--gray-100)
+            border-bottom: 1px solid var(--gray-100);
+            background: var(--gray-50);
         }
 
         th {
@@ -873,7 +890,7 @@
         }
 
         td {
-            padding: 12px 16px;
+            padding: 11px 16px;
             vertical-align: middle
         }
 
@@ -937,13 +954,13 @@
         .modal-overlay {
             position: fixed;
             inset: 0;
-            background: rgba(0, 0, 0, .55);
+            background: rgba(0, 0, 0, .5);
             z-index: 1000;
             display: none;
             align-items: center;
             justify-content: center;
             padding: 20px;
-            backdrop-filter: blur(2px)
+            backdrop-filter: blur(4px)
         }
 
         .modal-overlay.open {
@@ -952,11 +969,11 @@
 
         .modal {
             background: var(--white);
-            border-radius: var(--radius);
-            box-shadow: var(--shadow-lg);
+            border-radius: 8px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, .18), 0 4px 16px rgba(0, 0, 0, .08);
             width: 100%;
             max-width: 480px;
-            animation: modalIn .2s ease;
+            animation: modalIn .2s cubic-bezier(.175, .885, .32, 1.15);
             max-height: 90vh;
             overflow-y: auto
         }
@@ -964,7 +981,7 @@
         @keyframes modalIn {
             from {
                 opacity: 0;
-                transform: scale(.96) translateY(-8px)
+                transform: scale(.94) translateY(-12px)
             }
 
             to {
@@ -1430,16 +1447,35 @@
 
         .bar {
             width: 100%;
-            background: var(--black);
-            border-radius: var(--radius);
+            background: var(--gray-200);
+            border-radius: 3px 3px 0 0;
             transition: height .45s cubic-bezier(.4, 0, .2, 1);
-            min-height: 2px
+            min-height: 2px;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .bar:hover {
+            filter: brightness(0.85);
+        }
+
+        .bar.bar-today {
+            background: var(--black);
+        }
+
+        .bar.bar-highest {
+            background: var(--gray-600);
         }
 
         .bar-label {
             font-size: 10px;
             color: var(--gray-400);
             font-family: var(--font-mono)
+        }
+
+        .bar-label.bar-label-today {
+            color: var(--black);
+            font-weight: 700;
         }
 
         .bar-val {
@@ -1653,6 +1689,23 @@
         /* UTILS */
         .hidden {
             display: none !important
+        }
+
+        /* Page content fade-in on navigate */
+        @keyframes pageIn {
+            from {
+                opacity: 0;
+                transform: translateY(6px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        #content-area>* {
+            animation: pageIn .18s ease forwards;
         }
 
         .flex {
@@ -2257,21 +2310,19 @@
         }
 
         function handleRemoteUpdate(data) {
-            // Fix 5: Re-read currentUser from store to avoid stale closure value
+            // Re-read currentUser from store to avoid stale closure value
             const freshCurrentUserId = currentUser?.id || getStore().currentUser?.id;
             if (data.type === 'STORE_UPDATE' && data.from !== freshCurrentUserId) {
                 const elapsed = Date.now() - data.ts;
-                if (elapsed < 2000) {
+                if (elapsed < 1800) { // tight 1.8s window for guaranteed <2s UX
                     _storeCache = null; // SS-023: invalidate cache before writing new store
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(data.store));
                     if (activeTab && currentUser) {
                         if (activeTab === 'dashboard') {
-                            // Animate chart bars in-place - no full re-render flicker
                             updateDashboardChart();
                         } else if (activeTab !== 'pos') {
                             renderContent(activeTab);
                         } else {
-                            // For POS: refresh item list without resetting cart
                             refreshPOSItemsOnly();
                         }
                         // Check if current user was suspended/business deactivated
@@ -2287,7 +2338,6 @@
                                 forceLogout('Your business has been deactivated.');
                                 return;
                             }
-                            // Check cancelled subscription expiry
                             checkCancelledSubscriptionExpiry(currentUser.businessId);
                         }
                     }
@@ -2343,7 +2393,7 @@
             function startInterval() {
                 if (_pollInterval) return;
                 lastSeen = localStorage.getItem(STORAGE_KEY); // re-sync on resume
-                _pollInterval = setInterval(runPoll, 1500);
+                _pollInterval = setInterval(runPoll, 800); // 800ms poll ensures <2s update propagation
             }
 
             function stopInterval() {
@@ -3540,6 +3590,7 @@
             // ── Bar chart ────────────────────────────────────────────────
             const weekData = computeWeekData(txns);
             const maxAmount = Math.max(...weekData.map(d => d.amount), 1);
+            const highestAmount = Math.max(...weekData.filter(d => !d.isFuture && !d.isToday).map(d => d.amount), 0);
 
             weekData.forEach((d, i) => {
                 const barEl = $(`dash-bar-${i}`);
@@ -3549,17 +3600,21 @@
 
                 if (d.isFuture) {
                     barEl.style.height = '2px';
-                    barEl.style.background = 'var(--gray-200)';
+                    barEl.style.background = 'var(--gray-100)';
                     valEl.textContent = '';
                     if (groupEl) groupEl.style.opacity = '0.3';
                     return;
                 }
 
-                // Past days: grey bars showing locked historical total
-                // Today: black bar that grows with each new transaction
                 const h = d.amount > 0 ? Math.max((d.amount / maxAmount) * 120, 4) : 2;
                 barEl.style.height = h + 'px';
-                barEl.style.background = d.isToday ? 'var(--black)' : 'var(--gray-400)';
+                if (d.isToday) {
+                    barEl.style.background = 'var(--black)';
+                } else if (d.amount === highestAmount && d.amount > 0) {
+                    barEl.style.background = 'var(--gray-600)';
+                } else {
+                    barEl.style.background = 'var(--gray-300)';
+                }
                 valEl.textContent = fmtBar(d.amount);
                 if (groupEl) groupEl.style.opacity = '1';
             });
@@ -3662,7 +3717,7 @@
               <div class="bar-val" id="dash-bar-val-${i}" style="font-size:9px;height:16px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:2px">${fmtBar(d.amount)}</div>
               <div class="bar" id="dash-bar-${i}"
                 style="height:${d.isFuture ? 2 : (d.amount > 0 ? Math.max((d.amount / maxAmount) * 120, 4) : 2)}px;
-                       background:${d.isToday ? 'var(--black)' : (d.isFuture ? 'var(--gray-200)' : 'var(--gray-400)')};
+                       background:${d.isToday ? 'var(--black)' : (d.isFuture ? 'var(--gray-100)' : (d.amount === Math.max(...weekData.filter(x => !x.isFuture && !x.isToday).map(x => x.amount), 0) && d.amount > 0 ? 'var(--gray-600)' : 'var(--gray-300))'))};
                        transition:height .45s cubic-bezier(.4,0,.2,1)"></div>
               <div class="bar-label" style="line-height:1.4;padding-top:4px">
                 <div style="font-weight:${d.isToday ? '700' : '400'};color:${d.isToday ? 'var(--black)' : 'inherit'}">${d.dayName}</div>
@@ -4637,7 +4692,12 @@
 
         function recordTransaction(total, type, discount) {
             const itemsSummary = posCart.map(c => `${sanitize(c.name)} ×${c.quantity}`).join(', ');
-            const receiptId = `TXN-${Date.now().toString(36).toUpperCase()}`;
+            const _rNow = new Date();
+            const _rDD = String(_rNow.getDate()).padStart(2, '0');
+            const _rMM = String(_rNow.getMonth() + 1).padStart(2, '0');
+            const _rYYYY = _rNow.getFullYear();
+            const _r4 = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
+            const receiptId = `SS-${_rDD}${_rMM}${_rYYYY}-${_r4}`;
             const cartSnapshot = [...posCart];
             const txn = {
                 id: `trx-${uid()}`,
@@ -5253,13 +5313,14 @@
             const sub = biz ? store.subscriptions.find(s => s.businessId === biz.id) : null;
             const st = biz ? getSubStatus(biz.id) : null;
             const limits = biz ? (PLAN_LIMITS[biz.plan] || PLAN_LIMITS.starter) : null;
+            const isCashier = currentUser.role === 'cashier';
 
             area.innerHTML = `
     <div class="page-header"><h2 class="page-title">Account Settings</h2></div>
     <div style="display:flex;flex-direction:column;gap:20px;max-width:1040px">
-      <div class="settings-grid" style="display:grid;grid-template-columns:${biz ? '1fr 1fr' : '1fr'};gap:20px;align-items:start">
-        ${biz ? `
-        <!-- SS-016: Business details section -->
+      <div class="settings-grid" style="display:grid;grid-template-columns:${biz && !isCashier ? '1fr 1fr' : '1fr'};gap:20px;align-items:start">
+        ${biz && !isCashier ? `
+        <!-- SS-016: Business details section — admin only -->
         <div class="card">
           <div class="card-header"><span class="card-title">Business Details</span></div>
           <div class="card-body">
@@ -5277,7 +5338,7 @@
             <button class="btn btn-primary btn-full" onclick="saveBusinessDetails()">Update Business Details</button>
           </div>
         </div>` : ''}
-        <div class="card">
+        <div class="card" style="${isCashier ? 'max-width:480px' : ''}">
           <div class="card-header"><span class="card-title">Personal Details</span></div>
           <div class="card-body">
             <div class="form-group"><label class="form-label">Full Name</label><input id="s-name" class="form-input" value="${sanitize(currentUser.name)}"/></div>

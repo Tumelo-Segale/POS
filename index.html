@@ -444,12 +444,6 @@
             gap: 6px;
         }
 
-        .mockup-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-        }
-
         .hero-mockup img {
             width: 100%;
             display: block;
@@ -784,7 +778,8 @@
             box-shadow: 0 0 0 2px rgba(10, 10, 10, .06);
         }
 
-        .form-input.invalid {
+        .form-input.invalid,
+        .form-textarea.invalid {
             border-color: var(--red);
         }
 
@@ -1129,7 +1124,7 @@
             </a>
         </nav>
         <div class="sidebar-footer">
-            <a href="signup.html" class="btn btn-primary btn-full">Get Started</a>
+            <a href="signup.html#register" class="btn btn-primary btn-full">Get Started</a>
         </div>
     </aside>
 
@@ -1148,8 +1143,8 @@
                 <a href="#pricing" id="desk-nav-pricing" class="nav-link hide-mobile">Pricing</a>
                 <a href="#contact" id="desk-nav-contact" class="nav-link hide-mobile">Contact</a>
                 <a href="signup.html" class="btn btn-outline hide-mobile" style="height:36px;font-size:13px">Login</a>
-                <a href="signup.html" class="btn btn-primary hide-mobile" style="height:36px;font-size:13px">Get
-                    Started</a>
+                <a href="signup.html#register" class="btn btn-primary hide-mobile"
+                    style="height:36px;font-size:13px">Get Started</a>
                 <button class="hamburger-btn" onclick="openSidebar()" aria-label="Open menu">
                     <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
                         stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
@@ -1169,18 +1164,19 @@
             <p>Manage inventory, process sales with instant receipts, apply discounts, and empower your team - all from
                 one streamlined platform built for Southern Africa.</p>
             <div class="hero-cta">
-                <a href="signup.html" class="btn btn-primary btn-lg">Start 7-Day Free Trial</a>
+                <a href="signup.html#register" class="btn btn-primary btn-lg">Start 7-Day Free Trial</a>
                 <a href="#platform" class="btn btn-outline btn-lg">Explore Platform</a>
             </div>
 
             <!-- DASHBOARD SCREENSHOT -->
             <div class="hero-mockup">
                 <div class="mockup-header">
-                    <div class="mockup-dot" style="background:#ff5f56"></div>
-                    <div class="mockup-dot" style="background:#ffbd2e"></div>
-                    <div class="mockup-dot" style="background:#27c93f"></div>
+                    <span
+                        style="font-family:var(--font-mono);font-size:11px;font-weight:700;color:var(--gray-500);letter-spacing:.06em">SaleStation
+                        Dashboard</span>
                 </div>
-                <img src="admin-dashboard-screenshot.png" alt="SaleStation Admin Dashboard - Weekly Sales Overview">
+                <img src="admin-dashboard-screenshot.png" alt="SaleStation Admin Dashboard - Weekly Sales Overview"
+                    loading="lazy">
             </div>
         </div>
     </section>
@@ -1481,7 +1477,7 @@
                         <li>No statement downloads</li>
                         <li>No grace period</li>
                     </ul>
-                    <a href="signup.html" class="btn btn-outline" style="width:100%">Start Free Trial</a>
+                    <a href="signup.html#register" class="btn btn-outline" style="width:100%">Start Free Trial</a>
                 </div>
                 <!-- Starter -->
                 <div class="plan-card">
@@ -1494,7 +1490,7 @@
                         <li>Weekly Statement Export</li>
                         <li>2-day grace period</li>
                     </ul>
-                    <a href="signup.html" class="btn btn-primary" style="width:100%">Choose Starter</a>
+                    <a href="signup.html#register" class="btn btn-primary" style="width:100%">Choose Starter</a>
                 </div>
                 <!-- Premium -->
                 <div class="plan-card popular">
@@ -1510,7 +1506,7 @@
                         <li>Weekly, Monthly & Yearly Exports</li>
                         <li>2-day grace period</li>
                     </ul>
-                    <a href="signup.html" class="btn btn-primary" style="width:100%">Choose Premium</a>
+                    <a href="signup.html#register" class="btn btn-primary" style="width:100%">Choose Premium</a>
                 </div>
             </div>
         </div>
@@ -1529,15 +1525,15 @@
                 </div>
                 <div class="contact-form-card">
                     <div class="form-group">
-                        <label class="form-label">Full Name</label>
+                        <label class="form-label" for="contact-name">Full Name</label>
                         <input type="text" id="contact-name" class="form-input" placeholder="John Doe">
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Email Address</label>
+                        <label class="form-label" for="contact-email">Email Address</label>
                         <input type="email" id="contact-email" class="form-input" placeholder="name@business.com">
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Message</label>
+                        <label class="form-label" for="contact-message">Message</label>
                         <textarea id="contact-message" class="form-textarea"
                             placeholder="How can we help you?"></textarea>
                     </div>
@@ -1556,7 +1552,7 @@
             </div>
             <div style="display:flex;gap:24px;flex-wrap:wrap">
                 <a href="signup.html" style="color:var(--gray-400);text-decoration:none">Login</a>
-                <a href="signup.html" style="color:var(--gray-400);text-decoration:none">Register</a>
+                <a href="signup.html#register" style="color:var(--gray-400);text-decoration:none">Register</a>
                 <a href="#" onclick="openTCModal();return false;"
                     style="color:var(--gray-400);text-decoration:none">Terms</a>
             </div>
@@ -1707,6 +1703,8 @@
                 businesses: [], items: [], transactions: [], messages: [],
                 subscriptions: [], locations: [], auditLogs: [], currentUser: null
             };
+            // Ensure messages array always exists
+            if (!base.messages) base.messages = [];
             const next = fn(base);
             localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
         }
@@ -1720,16 +1718,24 @@
             const nameEl = document.getElementById('contact-name');
             const emailEl = document.getElementById('contact-email');
             const msgEl = document.getElementById('contact-message');
-
             const name = nameEl.value.trim();
             const email = emailEl.value.trim();
             const msg = msgEl.value.trim();
+
+            // Rate-limit check
+            const now = Date.now();
+            const elapsed = now - _lastContactSend;
+            if (_lastContactSend > 0 && elapsed < CONTACT_COOLDOWN_MS) {
+                const secsLeft = Math.ceil((CONTACT_COOLDOWN_MS - elapsed) / 1000);
+                toast(`Please wait ${secsLeft}s before sending another message.`, 'error');
+                return;
+            }
 
             // Validation
             let valid = true;
             [nameEl, emailEl, msgEl].forEach(el => el.classList.remove('invalid'));
             if (!name) { nameEl.classList.add('invalid'); valid = false; }
-            if (!email || !email.includes('@')) { emailEl.classList.add('invalid'); valid = false; }
+            if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { emailEl.classList.add('invalid'); valid = false; }
             if (!msg) { msgEl.classList.add('invalid'); valid = false; }
             if (!valid) { toast('Please fill in all fields correctly.', 'error'); return; }
 
@@ -1804,9 +1810,12 @@
             }
         }
 
-        // Close T&C modal with Escape key
+        // Close T&C modal / mobile sidebar with Escape key
         document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape') closeTCModal();
+            if (e.key === 'Escape') {
+                closeTCModal();
+                if (document.getElementById('mobile-sidebar').classList.contains('open')) closeSidebar();
+            }
         });
 
         // ── BOOTSTRAP ON DOM READY ──

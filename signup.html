@@ -805,6 +805,15 @@
             }
         }
 
+        @media(max-width:400px) {
+
+            .stats-grid-2,
+            .stats-grid-4,
+            .stats-grid-3 {
+                grid-template-columns: 1fr
+            }
+        }
+
         .stat-card {
             background: var(--white);
             border: 1px solid var(--gray-100);
@@ -1216,6 +1225,14 @@
             color: #8a6200;
         }
 
+        .pos-item-btn.pos-item-out-of-stock {
+            opacity: 0.45;
+            cursor: not-allowed;
+            background: var(--gray-100);
+            border-color: var(--gray-200);
+            pointer-events: none;
+        }
+
         .qty-btn:disabled {
             opacity: 0.3;
             cursor: not-allowed;
@@ -1551,6 +1568,19 @@
         .alert-orange {
             background: var(--orange-bg);
             color: var(--orange)
+        }
+
+        /* UTILITY TEXT CLASSES */
+        .text-mono {
+            font-family: var(--font-mono);
+        }
+
+        .text-sm {
+            font-size: 12px;
+        }
+
+        .font-bold {
+            font-weight: 700;
         }
 
         /* SEARCH BOX */
@@ -2251,12 +2281,10 @@
                 ...freshStore,
                 subscriptions: freshStore.subscriptions.map(sub => {
                     if (sub.nextPlan && new Date(sub.expiresAt) <= now) {
-                        const latestSub = freshStore.subscriptions.find(s => s.businessId === sub.businessId) || sub;
-                        if (!latestSub.nextPlan) return sub; // another tab already applied it
-                        const plan = latestSub.nextPlan;
+                        const plan = sub.nextPlan;
                         const dur = PLAN_LIMITS[plan]?.durationDays || 30;
                         changed = true;
-                        return { ...latestSub, plan, nextPlan: null, status: 'active', expiresAt: new Date(Date.now() + dur * 86400000).toISOString() };
+                        return { ...sub, plan, nextPlan: null, status: 'active', expiresAt: new Date(Date.now() + dur * 86400000).toISOString() };
                     }
                     return sub;
                 }),
@@ -2628,7 +2656,7 @@
             let errors = [];
             if (!bizName) { document.getElementById('reg-biz').classList.add('invalid'); errors.push('Business name'); }
             if (!owner) { document.getElementById('reg-owner').classList.add('invalid'); errors.push('Owner name'); }
-            if (!email || !email.includes('@')) { document.getElementById('reg-email').classList.add('invalid'); errors.push('Valid email'); }
+            if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { document.getElementById('reg-email').classList.add('invalid'); errors.push('Valid email'); }
             if (!password || password.length < 6) { document.getElementById('reg-password').classList.add('invalid'); errors.push('Password (min. 6 chars)'); }
             if (errors.length) { toast('Please fill in: ' + errors.join(', '), 'error'); return; }
 
@@ -2703,7 +2731,7 @@
 
             const user = store.users.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === pass);
             if (!user) { toast('Invalid email or password', 'error'); return; }
-            if (user.status === 'suspended' || user.status === 'inactive') { toast('Your account is suspended. Contact support.', 'error'); return; }
+            if (user.status === 'suspended' || user.status === 'inactive') { toast('Your account has been suspended. Please contact support for assistance.', 'error'); return; }
 
             if (user.businessId) {
                 const biz = store.businesses.find(b => b.id === user.businessId);
@@ -2758,16 +2786,7 @@
             const featureList = (plan) => {
                 const limits = PLAN_LIMITS[plan];
                 if (!limits) return '';
-                const features = [
-                    limits.items === Infinity ? 'Unlimited products' : `Up to ${limits.items} products`,
-                    limits.cashiers === Infinity ? 'Unlimited cashiers' : `Up to ${limits.cashiers} cashiers`,
-                    limits.locations === Infinity ? 'Unlimited locations' : `Up to ${limits.locations} location${limits.locations > 1 ? 's' : ''}`,
-                    limits.receipts ? 'Digital receipts' : null,
-                    limits.multiStore ? 'Multi-store support' : null,
-                    limits.auditLogs ? 'Audit logs' : null,
-                    `${limits.durationDays}-day subscription`
-                ].filter(Boolean);
-                return features.map(f => `<li>${f}</li>`).join('');
+                return (limits.features || []).map(f => `<li>${f}</li>`).join('');
             };
 
             const zarStarterPrice = 'R' + Number(PLAN_LIMITS.starter.price).toLocaleString('en-ZA', { minimumFractionDigits: 2 });
@@ -2867,7 +2886,6 @@
             showPage('login-page');
             document.getElementById('login-email').value = '';
             document.getElementById('login-password').value = '';
-            document.getElementById('session-warning').classList.remove('show');
         }
 
         function handleLogout() {
@@ -3078,7 +3096,7 @@
                 if (el) { el.value = ''; el.classList.remove('invalid'); }
             });
 
-            toast('Payment successful! Welcome to SaleStation.', 'success');
+            toast(plan === 'trial' ? 'Trial activated! Welcome to SaleStation.' : 'Payment successful! Welcome to SaleStation.', 'success');
             launchApp();
         }
 
@@ -3090,7 +3108,7 @@
             document.getElementById('auth-container').classList.add('hidden');
             document.getElementById('app-container').classList.remove('hidden');
             document.getElementById('topbar-user-name').textContent = currentUser.name;
-            document.getElementById('topbar-user-role').textContent = currentUser.role.replace('-', ' ');
+            document.getElementById('topbar-user-role').textContent = currentUser.role.replaceAll('-', ' ');
             buildSidebar();
             updateSubStatusBadge();
             resetSessionTimer();
@@ -3232,6 +3250,9 @@
         }
 
         function _doNavigate(tab) {
+            // Restore content-area overflow when leaving POS
+            const _area = document.getElementById('content-area');
+            if (_area) _area.style.overflow = '';
             // Gate: check subscription still active (skip for super-admin)
             if (currentUser.role !== 'super-admin' && currentUser.businessId && tab !== 'subscriptions' && tab !== 'settings' && tab !== 'contact') {
                 const active = enforceSubscription(currentUser.businessId);
@@ -3597,12 +3618,12 @@
             <div style="padding:14px;border:1px solid var(--gray-100);border-radius:var(--radius);margin-bottom:10px;background:${m.read ? 'var(--white)' : 'var(--blue-bg)'}">
               <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;gap:8px">
                 <div>
-                  <div class="font-bold">${m.businessName} ${!m.read ? '<span class="badge badge-blue">New</span>' : ''}</div>
+                  <div class="font-bold">${sanitize(m.businessName)} ${!m.read ? '<span class="badge badge-blue">New</span>' : ''}</div>
                   <div class="text-muted text-sm">${m.senderName ? sanitize(m.senderName) + (m.senderRole ? ' · ' + m.senderRole : '') + ' · ' : ''}${m.email}</div>
                 </div>
                 <div style="display:flex;align-items:center;gap:8px">
                   <span class="text-muted text-sm">${formatDateShort(m.createdAt)}</span>
-                  ${!m.read ? `<button class="btn btn-sm btn-outline" onclick="markMessageRead('${m.id}')">${Icon.read} Mark Read</button>` : ''}
+                  ${!m.read ? `<button class="btn btn-sm btn-outline" onclick="markMessageRead('${m.id}')">Mark Read</button>` : ''}
                 </div>
               </div>
               <p style="font-size:13px;color:var(--gray-700)">${sanitize(m.message)}</p>
@@ -3799,7 +3820,7 @@
                 typeof st.daysLeft === 'number' && st.daysLeft <= 3 && st.daysLeft > 0;
             const subBanner =
                 (st && st.inGrace)
-                    ? `<div class="alert alert-orange mb-20"><b>Grace period:</b>${st.graceLeft} day(s) remaining. Renew your subscription to avoid suspension.</div>`
+                    ? `<div class="alert alert-orange mb-20"><b>Grace period:</b> ${st.graceLeft} day(s) remaining. Renew your subscription to avoid suspension.</div>`
                     : (st && st.status === 'expired')
                         ? `<div class="alert alert-red mb-20">${Icon.alert} Subscription expired. Functionality is suspended.</div>`
                         : (st && st.status === 'cancelled' && st.active && st.daysLeft <= 3)
@@ -3852,10 +3873,10 @@
             area.innerHTML = `
     ${subBanner}
     <div class="stats-grid stats-grid-4 mb-20">
-      <div class="stat-card"><div class="stat-icon">${Icon.credit}</div><div><div class="stat-label">Today's Sales</div><div class="stat-value" id="dash-today">${formatCurrency(todaySales)}</div></div></div>
-      <div class="stat-card"><div class="stat-icon">${Icon.dashboard}</div><div><div class="stat-label">Monthly Sales</div><div class="stat-value" id="dash-monthly">${formatCurrency(monthlySales)}</div></div></div>
-      <div class="stat-card"><div class="stat-icon">${Icon.history}</div><div><div class="stat-label">Yearly Sales</div><div class="stat-value" id="dash-yearly">${formatCurrency(yearlySales)}</div></div></div>
-      <div class="stat-card"><div class="stat-icon">${Icon.cart}</div><div><div class="stat-label">Total Transactions</div><div class="stat-value" id="dash-count">${txns.length}</div></div></div>
+      <div class="stat-card"><div class="stat-icon">${Icon.cart}</div><div><div class="stat-label">Today's Sales</div><div class="stat-value" id="dash-today">${formatCurrency(todaySales)}</div></div></div>
+      <div class="stat-card"><div class="stat-icon">${Icon.credit}</div><div><div class="stat-label">Monthly Sales</div><div class="stat-value" id="dash-monthly">${formatCurrency(monthlySales)}</div></div></div>
+      <div class="stat-card"><div class="stat-icon">${Icon.dashboard}</div><div><div class="stat-label">Yearly Sales</div><div class="stat-value" id="dash-yearly">${formatCurrency(yearlySales)}</div></div></div>
+      <div class="stat-card"><div class="stat-icon">${Icon.history}</div><div><div class="stat-label">Total Transactions</div><div class="stat-value" id="dash-count">${txns.length}</div></div></div>
     </div>
     <div class="card">
       <div class="card-header">
@@ -3934,7 +3955,7 @@
 
             area.innerHTML = `
     <div class="page-header">
-      <h2 class="page-title">Inventory <span style="font-size:13px;color:var(--gray-400);font-weight:400;font-family:var(--font-sans)">${activeItemCount}${limits.items !== Infinity ? ' / ' + limits.items : ''} active${itemLimitWarning}</span></h2>
+      <h2 class="page-title">Inventory <span style="font-size:13px;color:var(--gray-400);font-weight:400;font-family:var(--font-main)">${activeItemCount}${limits.items !== Infinity ? ' / ' + limits.items : ''} active${itemLimitWarning}</span></h2>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <div class="search-box"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--gray-400)"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="inv-search" type="text" placeholder="Search items..." style="padding-left:30px;height:34px" oninput="filterInventoryItems()" /></div>
         <select id="inv-status-filter" class="form-select" style="height:34px;width:140px" onchange="filterInventoryItems()">
@@ -4025,7 +4046,7 @@
             const isTracked = item && item.stock !== null && item.stock !== undefined;
             openModal(item ? 'Edit Item' : 'Add New Item', `
     <div class="form-group"><label class="form-label">Item Name</label><input id="m-item-name" class="form-input" value="${item ? sanitize(item.name) : ''}" placeholder="e.g. Coca Cola 500ml"/></div>
-    <div class="form-group"><label class="form-label">Price (${sym})</label><input id="m-item-price" class="form-input" type="number" min="0" step="0.01" value="${item ? item.price : ''}" placeholder="0.00"/></div>
+    <div class="form-group"><label class="form-label">Price (${sym})</label><input id="m-item-price" class="form-input" type="number" min="0" max="999999" step="0.01" value="${item ? item.price : ''}" placeholder="0.00"/></div>
     <div class="form-group">
       <label class="form-label">Stock Tracking</label>
       <select id="m-item-stock-mode" class="form-select" onchange="toggleStockField(this.value)">
@@ -4180,10 +4201,10 @@
                     cashiers.map(c => {
                         const loc = locations.find(l => l.id === c.locationId);
                         return `<tr>
-                  <td><strong>${c.name}</strong></td>
-                  <td class="text-muted">${c.email}</td>
-                  <td>${c.contact || '-'}</td>
-                  <td>${loc ? loc.name : '<span class="text-muted">-</span>'}</td>
+                  <td><strong>${sanitize(c.name)}</strong></td>
+                  <td class="text-muted">${sanitize(c.email)}</td>
+                  <td>${sanitize(c.contact || '-')}</td>
+                  <td>${loc ? sanitize(loc.name) : '<span class="text-muted">-</span>'}</td>
                   <td><span class="badge ${c.status === 'active' ? 'badge-green' : 'badge-red'}">${c.status}</span></td>
                   <td><div class="td-actions">
                     <button class="btn btn-sm btn-outline" onclick="openCashierModal('${c.id}')">${Icon.edit}</button>
@@ -4231,7 +4252,7 @@
             const locationId = locEl ? locEl.value : '';
 
             if (!name || !email) { toast('Name and email are required', 'error'); return; }
-            if (!email.includes('@')) { toast('Please enter a valid email address', 'error'); return; }
+            if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { toast('Please enter a valid email address', 'error'); return; }
 
             const store = getStore();
             if (cashierId) {
@@ -4317,8 +4338,8 @@
                     locations.map(l => {
                         const cashiers = store.users.filter(u => u.businessId === currentUser.businessId && u.role === 'cashier' && u.locationId === l.id);
                         return `<tr>
-                  <td><strong>${l.name}</strong></td>
-                  <td class="text-muted">${l.address || '-'}</td>
+                  <td><strong>${sanitize(l.name)}</strong></td>
+                  <td class="text-muted">${sanitize(l.address || '-')}</td>
                   <td>${cashiers.length}</td>
                   <td><div class="td-actions">
                     <button class="btn btn-sm btn-outline" onclick="openLocationModal('${l.id}')">${Icon.edit}</button>
@@ -4340,7 +4361,7 @@
                         const txns = store.transactions.filter(t => t.businessId === currentUser.businessId && cashiers.map(c => c.id).includes(t.cashierId));
                         const total = txns.reduce((a, t) => a + t.amount, 0);
                         return `<div style="padding:12px;border:1px solid var(--gray-100);border-radius:var(--radius);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
-                <div><strong>${l.name}</strong><div class="text-muted text-sm">${cashiers.length} cashier(s) · ${txns.length} transactions</div></div>
+                <div><strong>${sanitize(l.name)}</strong><div class="text-muted text-sm">${cashiers.length} cashier(s) · ${txns.length} transactions</div></div>
                 <div class="text-mono font-bold">${formatCurrency(total)}</div>
               </div>`;
                     }).join('')}
@@ -4510,6 +4531,7 @@
         function renderPOS(area) {
             refreshPOSItemCache();
             area.style.paddingBottom = '0';
+            area.style.overflow = 'hidden';
             area.innerHTML = `
     <div class="pos-layout">
       <div class="pos-items-panel">
@@ -4678,7 +4700,7 @@
             if (checkoutBtn) {
                 checkoutBtn.disabled = posCart.length === 0;
                 checkoutBtn.textContent = 'Complete Transaction';
-                checkoutBtn.style.opacity = posCart.length === 0 ? '0.5' : '';
+                checkoutBtn.style.opacity = '';
             }
         }
 
@@ -4935,11 +4957,11 @@
             const store = getStore();
             const allTxns = store.transactions.filter(t => t.businessId === currentUser.businessId);
             const now = new Date();
-            const today = now.toISOString().split('T')[0];
+            const today = localDateStr(now);
 
             const filtered = allTxns.filter(t => {
                 const d = new Date(t.createdAt);
-                if (txnFilterPeriod === 'today') return t.createdAt.startsWith(today);
+                if (txnFilterPeriod === 'today') return localDateStr(d) === today;
                 if (txnFilterPeriod === 'week') { const w = new Date(now); w.setDate(now.getDate() - 6); w.setHours(0, 0, 0, 0); return d >= w; }
                 if (txnFilterPeriod === 'month') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
                 return true; // 'all'
@@ -5243,7 +5265,7 @@
 
             area.innerHTML = `
     <div class="page-header"><h2 class="page-title">Subscription</h2></div>
-    ${st?.inGrace ? `<div class="alert alert-orange mb-20"><b>Grace period:</b>${st.graceLeft} day(s) remaining. Renew before expiry to keep your account active.</div>` : ''}
+    ${st?.inGrace ? `<div class="alert alert-orange mb-20"><b>Grace period:</b> ${st.graceLeft} day(s) remaining. Renew before expiry to keep your account active.</div>` : ''}
     ${st?.status === 'expired' ? `<div class="alert alert-red mb-20">${Icon.alert} Subscription expired. All functionality is suspended. Please renew.</div>` : ''}
     ${st?.active && !st?.inGrace && typeof st?.daysLeft === 'number' && st?.daysLeft <= 3 && st?.daysLeft > 0 ? `<div class="alert alert-accent mb-20">${Icon.alert} <strong>Heads up:</strong> Your subscription expires in <strong>${st.daysLeft} day(s)</strong>. Renew before it ends to avoid interruption.</div>` : ''}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:760px" class="sub-grid">
@@ -5448,7 +5470,8 @@
         function handleCancelSub() {
             const store = getStore();
             const sub = store.subscriptions.find(s => s.businessId === currentUser.businessId);
-            const cancelWarning = `Your plan stays active until ${formatDateShort(sub.expiresAt)}, then access is immediately revoked (no grace period applies to cancelled subscriptions). Cancel anyway?`;
+            const remainingDays = sub.expiresAt ? Math.max(0, Math.ceil((new Date(sub.expiresAt) - new Date()) / 86400000)) : 0;
+            const cancelWarning = `Your plan will remain active for the ${remainingDays} day(s) remaining until ${formatDateShort(sub.expiresAt)}, then access is immediately revoked. No grace period applies once cancelled. Cancel anyway?`;
             confirm2('Cancel Subscription', cancelWarning).then(ok => {
                 if (!ok) return;
                 updateStore(d => ({ ...d, subscriptions: d.subscriptions.map(s => s.businessId === currentUser.businessId ? { ...s, status: 'cancelled' } : s) }));
@@ -5481,8 +5504,14 @@
         }
 
         function sendSupportMessage() {
-            const msg = document.getElementById('support-msg').value.trim();
-            if (!msg) { toast('Please enter a message', 'error'); return; }
+            const msgEl = document.getElementById('support-msg');
+            const msg = msgEl ? msgEl.value.trim() : '';
+            if (!msg) {
+                if (msgEl) msgEl.classList.add('invalid');
+                toast('Please enter a message', 'error');
+                return;
+            }
+            if (msgEl) msgEl.classList.remove('invalid');
             const store = getStore();
             const biz = store.businesses.find(b => b.id === currentUser.businessId);
             updateStore(d => ({
@@ -5572,7 +5601,7 @@
             const name = nameEl.value.trim();
             const email = emailEl ? emailEl.value.trim().toLowerCase() : '';
             if (!name) { toast('Business name cannot be empty', 'error'); return; }
-            if (email && !email.includes('@')) { toast('Please enter a valid business email', 'error'); return; }
+            if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { toast('Please enter a valid business email', 'error'); return; }
             updateStore(d => ({
                 ...d,
                 businesses: d.businesses.map(b => b.id === currentUser.businessId
@@ -5588,7 +5617,7 @@
             const email = document.getElementById('s-email').value.trim().toLowerCase();
             const pass = document.getElementById('s-pass').value;
             if (!name || !email) { toast('Name and email are required', 'error'); return; }
-            if (!email.includes('@')) { toast('Please enter a valid email address', 'error'); return; }
+            if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { toast('Please enter a valid email address', 'error'); return; }
 
             const store = getStore();
             // Email uniqueness check (excluding self)
@@ -5596,9 +5625,8 @@
             if (dup) { toast('This email is already in use', 'error'); return; }
 
             const updatedPass = pass ? pass : currentUser.password;
-            updateStore(d => ({ ...d, users: d.users.map(u => u.id === currentUser.id ? { ...u, name: sanitize(name), email, password: updatedPass } : u) }));
             currentUser = { ...currentUser, name: sanitize(name), email, password: updatedPass };
-            updateStore(d => ({ ...d, currentUser }));
+            updateStore(d => ({ ...d, users: d.users.map(u => u.id === currentUser.id ? { ...u, name: sanitize(name), email, password: updatedPass } : u), currentUser }));
             document.getElementById('topbar-user-name').textContent = currentUser.name;
             document.getElementById('s-pass').value = '';
             toast('Settings updated', 'success');
@@ -5668,6 +5696,13 @@
         })();
 
         (function init() {
+            // If arriving from landing page "Get Started" / "Register" links, jump straight
+            // to the register page instead of showing login.
+            if (window.location.hash === '#register') {
+                history.replaceState(null, '', window.location.pathname);
+                showPage('register-page');
+                return;
+            }
             const store = getStore();
             if (store.currentUser) {
                 currentUser = store.currentUser;

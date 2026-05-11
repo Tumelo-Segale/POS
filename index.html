@@ -435,12 +435,12 @@
         }
 
         .mockup-header {
-            height: 32px;
+            height: 36px;
             background: var(--gray-100);
             border-bottom: 1px solid var(--gray-200);
             display: flex;
             align-items: center;
-            padding: 0 12px;
+            padding: 0 14px;
             gap: 6px;
         }
 
@@ -1060,6 +1060,11 @@
                 width: 100%;
                 max-width: 280px;
             }
+
+            .hero-trust-bar {
+                gap: 20px !important;
+                padding-top: 24px !important;
+            }
         }
     </style>
 </head>
@@ -1160,20 +1165,46 @@
     <!-- HERO -->
     <section class="hero">
         <div class="container">
-            <h1>Smart Point of Sale<br>for Modern Businesses.</h1>
-            <p>Manage inventory, process sales with instant receipts, apply discounts, and empower your team - all from
-                one streamlined platform built for Southern Africa.</p>
+            <h1>The Point of Sale<br>Your Business Deserves.</h1>
+            <p>Process sales, track inventory, manage your team, and grow your revenue — all from one distraction-free
+                platform built for modern African businesses.</p>
             <div class="hero-cta">
                 <a href="signup.html#register" class="btn btn-primary btn-lg">Start 7-Day Free Trial</a>
                 <a href="#platform" class="btn btn-outline btn-lg">Explore Platform</a>
             </div>
 
+            <!-- Trust bar -->
+            <div
+                style="display:flex;justify-content:center;gap:32px;flex-wrap:wrap;margin-top:30px;margin-bottom:0;padding-top:32px;border-top:1px solid var(--gray-200)">
+                <div style="text-align:center">
+                    <div style="font-family:var(--font-mono);font-size:22px;font-weight:800;color:var(--black)">7-Day
+                    </div>
+                    <div style="font-size:11px;color:var(--gray-500);margin-top:2px;font-weight:500">Free Trial</div>
+                </div>
+                <div style="text-align:center">
+                    <div style="font-family:var(--font-mono);font-size:22px;font-weight:800;color:var(--black)">No</div>
+                    <div style="font-size:11px;color:var(--gray-500);margin-top:2px;font-weight:500">Software Install
+                    </div>
+                </div>
+                <div style="text-align:center">
+                    <div style="font-family:var(--font-mono);font-size:22px;font-weight:800;color:var(--black)">4</div>
+                    <div style="font-size:11px;color:var(--gray-500);margin-top:2px;font-weight:500">Countries Supported
+                    </div>
+                </div>
+                <div style="text-align:center">
+                    <div style="font-family:var(--font-mono);font-size:22px;font-weight:800;color:var(--black)">
+                        Real-Time</div>
+                    <div style="font-size:11px;color:var(--gray-500);margin-top:2px;font-weight:500">Sales Tracking
+                    </div>
+                </div>
+            </div>
+
             <!-- DASHBOARD SCREENSHOT -->
-            <div class="hero-mockup">
+            <div class="hero-mockup" style="margin-top:40px">
                 <div class="mockup-header">
                     <span
                         style="font-family:var(--font-mono);font-size:11px;font-weight:700;color:var(--gray-500);letter-spacing:.06em">SaleStation
-                        Dashboard</span>
+                        — Admin Dashboard</span>
                 </div>
                 <img src="admin-dashboard-screenshot.png" alt="SaleStation Admin Dashboard - Weekly Sales Overview"
                     loading="lazy">
@@ -1472,7 +1503,7 @@
                     <div class="plan-price">R0<span> / 7 days</span></div>
                     <ul class="plan-features">
                         <li>Max 1 Cashier</li>
-                        <li>Max 10 Items</li>
+                        <li>Max 15 Items</li>
                         <li>Transaction Receipts</li>
                         <li>No statement downloads</li>
                         <li>No grace period</li>
@@ -1526,11 +1557,11 @@
                 <div class="contact-form-card">
                     <div class="form-group">
                         <label class="form-label" for="contact-name">Full Name</label>
-                        <input type="text" id="contact-name" class="form-input" placeholder="John Doe">
+                        <input type="text" id="contact-name" class="form-input" placeholder="Sam Smith">
                     </div>
                     <div class="form-group">
                         <label class="form-label" for="contact-email">Email Address</label>
-                        <input type="email" id="contact-email" class="form-input" placeholder="name@business.com">
+                        <input type="email" id="contact-email" class="form-input" placeholder="name@domain.com">
                     </div>
                     <div class="form-group">
                         <label class="form-label" for="contact-message">Message</label>
@@ -1687,7 +1718,7 @@
         }
 
         // ── SHARED STORAGE KEY (same as signup.html) ──
-        const STORAGE_KEY = 'salestation_v5';
+        const STORAGE_KEY = 'salestation_v6';
 
         function getStore() {
             try {

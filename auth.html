@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SaleStation — Login</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet" />
+    <link rel="shortcut icon" href="./icon.ico" type="image/x-icon">
+    <!-- SheetJS for Excel export (needed by completeRegistration flow) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- Paystack Inline JS -->
+    <script src="https://js.paystack.co/v1/inline.js"></script>
+    <link rel="stylesheet" href="shared.css" />
+</head>
+
+<body>
+    <!-- AUTH CONTAINER -->
+    <div id="auth-container">
+        <!-- LOGIN -->
+        <div id="login-page" class="auth-card">
+            <div style="margin-bottom:16px">
+                <a href="index.html"
+                    style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--gray-500);text-decoration:none;font-family:var(--font-mono);font-weight:600;letter-spacing:.04em;transition:color .15s"
+                    onmouseover="this.style.color='var(--black)'" onmouseout="this.style.color='var(--gray-500)'">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                        <polyline points="15 18 9 12 15 6" />
+                    </svg>
+                    Back to Home
+                </a>
+            </div>
+            <div class="auth-logo">
+                <div class="auth-logo-icon"><img src="Logo-icon.png" alt="SaleStation"
+                        style="width:36px;height:36px;object-fit:contain" /></div>
+                <h1>SaleStation</h1>
+                <p>Welcome back.</p>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Email Address</label>
+                <input id="login-email" type="email" class="form-input" placeholder="name@business.com"
+                    autocomplete="email" />
+            </div>
+            <div class="form-group">
+                <label class="form-label">Password</label>
+                <div class="pw-wrap"><input id="login-password" type="password" class="form-input"
+                        placeholder="••••••••" autocomplete="current-password" />
+                    <button class="pw-toggle" type="button" onclick="togglePw('login-password',this)"><svg width="15"
+                            height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                            <circle cx="12" cy="12" r="3" />
+                        </svg></button>
+                </div>
+            </div>
+            <button class="btn btn-primary btn-full btn-lg" style="margin-top:8px"
+                onclick="handleLogin()">Login</button>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
+                <label
+                    style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--gray-500);cursor:pointer;user-select:none">
+                    <input type="checkbox" id="login-remember-me" style="width:14px;height:14px;cursor:pointer" />
+                    Remember me
+                </label>
+                <a onclick="showForgotPassword()"
+                    style="font-size:12px;color:var(--gray-500);cursor:pointer;text-decoration:underline">Forgot
+                    password?</a>
+            </div>
+            <div class="auth-switch">Don't have a business account? <a onclick="showPage('register-page')"><br>Register
+                    Business</a></div>
+        </div>
+
+        <!-- REGISTER STEP 1 -->
+        <div id="register-page" class="auth-card hidden">
+            <div style="margin-bottom:16px">
+                <a href="index.html"
+                    style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--gray-500);text-decoration:none;font-family:var(--font-mono);font-weight:600;letter-spacing:.04em;transition:color .15s"
+                    onmouseover="this.style.color='var(--black)'" onmouseout="this.style.color='var(--gray-500)'">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                        <polyline points="15 18 9 12 15 6" />
+                    </svg>
+                    Back to Home
+                </a>
+            </div>
+            <div class="auth-logo">
+                <div class="auth-logo-icon"><img src="Logo-icon.png" alt="SaleStation"
+                        style="width:36px;height:36px;object-fit:contain" /></div>
+                <h1>Register Business</h1>
+                <p>Step 1 of 2 - Business Details</p>
+            </div>
+            <div class="form-group"><label class="form-label">Business Name <span
+                        class="required-star">*</span></label><input id="reg-biz" type="text" class="form-input"
+                    placeholder="Acme Corp" /></div>
+            <div class="form-group"><label class="form-label">Owner Name <span
+                        class="required-star">*</span></label><input id="reg-owner" type="text" class="form-input"
+                    placeholder="John Doe" /></div>
+            <div class="form-group"><label class="form-label">Email Address <span
+                        class="required-star">*</span></label><input id="reg-email" type="email" class="form-input"
+                    placeholder="owner@business.com" /></div>
+            <div class="form-group">
+                <label class="form-label">Password <span class="required-star">*</span></label>
+                <div class="pw-wrap"><input id="reg-password" type="password" class="form-input"
+                        placeholder="Min. 6 characters" />
+                    <button class="pw-toggle" type="button" onclick="togglePw('reg-password',this)"><svg width="15"
+                            height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                            <circle cx="12" cy="12" r="3" />
+                        </svg></button>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Country & Currency <span class="required-star">*</span></label>
+                <select id="reg-currency" class="form-select" onchange="updatePlanPriceDisplay()">
+                    <option value="ZAR|R|South Africa">🇿🇦 South Africa - ZAR (R)</option>
+                    <option value="BWP|P|Botswana">🇧🇼 Botswana - BWP (P)</option>
+                    <option value="LSL|M|Lesotho">🇱🇸 Lesotho - LSL (M)</option>
+                    <option value="NAD|N$|Namibia">🇳🇦 Namibia - NAD (N$)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Business Type <span class="required-star">*</span></label>
+                <select id="reg-biz-type" class="form-select">
+                    <option value="">-- Select Business Type --</option>
+                    <option value="restaurant">Restaurant</option>
+                    <option value="retail">Retail</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+            <button class="btn btn-primary btn-full btn-lg" style="margin-top:8px" onclick="goToPlanPage()">Next: Select
+                Plan →</button>
+            <div class="auth-switch">Already have an account? <a onclick="showPage('login-page')">Login</a></div>
+        </div>
+
+        <!-- REGISTER STEP 2 – Plan -->
+        <div id="register-plan-page" class="auth-card hidden">
+            <div style="margin-bottom:16px">
+                <a href="index.html"
+                    style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--gray-500);text-decoration:none;font-family:var(--font-mono);font-weight:600;letter-spacing:.04em;transition:color .15s"
+                    onmouseover="this.style.color='var(--black)'" onmouseout="this.style.color='var(--gray-500)'">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                        <polyline points="15 18 9 12 15 6" />
+                    </svg>
+                    Back to Home
+                </a>
+            </div>
+            <div class="auth-logo">
+                <h1>Choose Your Plan</h1>
+                <p>Step 2 of 2 - Select the plan that fits your business</p>
+            </div>
+            <!-- Trial -->
+            <div id="plan-trial" class="plan-card" onclick="selectPlan('trial')">
+                <div class="plan-card-header">
+                    <span class="plan-name">Trial <span class="plan-badge-tag trial-badge">7-Day Free</span></span>
+                    <span class="plan-price" id="plan-price-trial">R0<span>/7 days</span></span>
+                </div>
+                <ul class="plan-features">
+                    <li>Max 1 Cashier</li>
+                    <li>Max 15 Items</li>
+                    <li>Transaction Receipts</li>
+                    <li>No statement downloads</li>
+                    <li>No grace period</li>
+                </ul>
+            </div>
+            <!-- Starter -->
+            <div id="plan-starter" class="plan-card selected" onclick="selectPlan('starter')">
+                <div class="plan-card-header">
+                    <span class="plan-name">Starter</span>
+                    <span class="plan-price" id="plan-price-starter">R200<span>/mo</span></span>
+                </div>
+                <ul class="plan-features">
+                    <li>Max 2 Cashiers</li>
+                    <li>Max 50 Items</li>
+                    <li>Transaction Receipts</li>
+                    <li>Weekly Statement Export</li>
+                    <li>2-day grace period</li>
+                </ul>
+            </div>
+            <!-- Premium -->
+            <div id="plan-premium" class="plan-card" onclick="selectPlan('premium')">
+                <div class="plan-card-header">
+                    <span class="plan-name">Premium <span class="plan-badge-tag popular-badge">Popular</span></span>
+                    <span class="plan-price" id="plan-price-premium">R500<span>/mo</span></span>
+                </div>
+                <ul class="plan-features">
+                    <li>Unlimited Cashiers</li>
+                    <li>Unlimited Items</li>
+                    <li>Transaction Receipts</li>
+                    <li>Multi-Store (up to 3 locations)</li>
+                    <li>Audit Action Logs</li>
+                    <li>Weekly, Monthly & Yearly Exports</li>
+                    <li>2-day grace period</li>
+                </ul>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:16px">
+                <button class="btn btn-outline btn-lg" style="flex:1" onclick="showPage('register-page')">←
+                    Back</button>
+                <button class="btn btn-primary btn-lg" style="flex:2" onclick="handleRegister()">Register & Pay
+                    →</button>
+            </div>
+            <div class="auth-switch">Already have an account? <a onclick="showPage('login-page')">Login</a></div>
+        </div>
+    </div>
+
+    <!-- MODAL (used by simulatePaystack & showLoginSubscriptionModal) -->
+    <div id="modal-overlay" class="modal-overlay" onclick="closeModal(event)">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span class="modal-title" id="modal-title">Modal</span>
+                <button class="modal-close" onclick="closeModal()"><svg width="16" height="16" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        viewBox="0 0 24 24">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg></button>
+            </div>
+            <div class="modal-body" id="modal-body"></div>
+        </div>
+    </div>
+
+    <!-- CONFIRM POPUP -->
+    <div id="confirm-overlay" class="confirm-overlay">
+        <div class="confirm-box">
+            <h3 id="confirm-title">Confirm Action</h3>
+            <p id="confirm-message"></p>
+            <div class="confirm-actions">
+                <button class="btn btn-outline" style="flex:1" id="confirm-cancel-btn">Cancel</button>
+                <button class="btn btn-danger" style="flex:1" id="confirm-ok-btn">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Containers -->
+    <div id="toast-container" role="status" aria-live="polite" aria-atomic="false"></div>
+    <div id="toast-container-assertive" role="alert" aria-live="assertive" aria-atomic="true"
+        style="position:fixed;bottom:-9999px;left:-9999px;width:1px;height:1px;overflow:hidden"></div>
+    <div id="page-title-announce" role="status" aria-live="polite" aria-atomic="true"
+        style="position:fixed;bottom:-9999px;left:-9999px;width:1px;height:1px;overflow:hidden"></div>
+
+    <script src="shared.js"></script>
+    <script src="auth.js"></script>
+</body>
+
+</html>

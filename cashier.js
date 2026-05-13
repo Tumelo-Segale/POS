@@ -33,6 +33,9 @@ function updateDashboardChart() {
 // POS
 // ============================================================
 let posCart = [];
+// FIX 5: Expose posCart on window so shared.js navigate() can reliably
+// detect it with typeof, regardless of script loading order.
+window.posCart = posCart;
 // Fix 20: Persist payment method in localStorage between navigation
 let posPayMethod = (() => {
   try {

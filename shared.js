@@ -17,6 +17,42 @@
 // only loads and processes its own records - ensuring O(n/businesses)
 // complexity per tenant rather than O(n) over all data.
 // ============================================================
+// FIX 21: Inject a Content-Security-Policy meta tag at runtime so every page
+// that loads shared.js gets baseline XSS protection.
+// This allowlists the exact external origins the app uses:
+//   - Google Fonts (preconnect + stylesheet + font files)
+//   - Paystack inline JS
+//   - cdnjs (SheetJS / XLSX)
+// 'unsafe-inline' is required for the inline <script> route guards in each HTML
+// file; remove it if those are ever converted to external scripts.
+(function injectCSP() {
+  if (document.querySelector('meta[http-equiv="Content-Security-Policy"]'))
+    return;
+  const meta = document.createElement("meta");
+  meta.httpEquiv = "Content-Security-Policy";
+  meta.content = [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' https://js.paystack.co https://cdnjs.cloudflare.com",
+    // Paystack loads button.min.css from paystack.com at runtime
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://paystack.com",
+    "font-src 'self' https://fonts.gstatic.com",
+    "connect-src 'self' https://api.paystack.co https://checkout.paystack.com https://paystack.com",
+    "img-src 'self' data: https:",
+    "frame-src https://checkout.paystack.com https://paystack.com",
+  ].join("; ");
+  document.head.prepend(meta);
+})();
+
+// ============================================================
+// ROLE CONSTANTS (FIX 17)
+// ============================================================
+// Centralised role strings — use these instead of bare magic strings.
+const ROLES = Object.freeze({
+  SUPER_ADMIN: "super-admin",
+  ADMIN: "admin",
+  CASHIER: "cashier",
+});
+
 const STORAGE_KEY = "salestation_v6";
 
 const PLAN_LIMITS = {
@@ -258,12 +294,12 @@ function enforceSubscription(businessId) {
   const st = getSubStatus(businessId);
   // SS-018: A subscription can be cancelled but still technically "active" until its
   // expiry date. However once expired, status === 'cancelled-expired' and active === false.
-  // Additionally guard the edge case where active might be true but status is cancelled
-  // and we're already past expiry (defensive double-check).
   const store = getStore();
   const sub = store.subscriptions.find((s) => s.businessId === businessId);
   const isCancelledPastExpiry =
     sub && sub.status === "cancelled" && new Date() > new Date(sub.expiresAt);
+  // FIX 9: A null getSubStatus means there is no subscription record at all —
+  // treat as inactive rather than silently granting access.
   if (!st || !st.active || isCancelledPastExpiry) {
     // Auto-disable business
     updateStore((d) => ({
@@ -281,32 +317,37 @@ function applyScheduledUpgrades() {
   const now = new Date();
   let changed = false;
   const freshStore = getStore();
-  const newStore = {
-    ...freshStore,
-    subscriptions: freshStore.subscriptions.map((sub) => {
-      if (sub.nextPlan && new Date(sub.expiresAt) <= now) {
-        const plan = sub.nextPlan;
-        const dur = PLAN_LIMITS[plan]?.durationDays || 30;
-        changed = true;
-        return {
-          ...sub,
-          plan,
-          nextPlan: null,
-          status: "active",
-          expiresAt: new Date(Date.now() + dur * 86400000).toISOString(),
-        };
-      }
-      return sub;
-    }),
-    businesses: freshStore.businesses.map((b) => {
-      const sub = freshStore.subscriptions.find((s) => s.businessId === b.id);
-      if (sub && sub.nextPlan && new Date(sub.expiresAt) <= now) {
-        return { ...b, plan: sub.nextPlan };
-      }
-      return b;
-    }),
-  };
-  if (changed) saveStore(newStore);
+  const newSubscriptions = freshStore.subscriptions.map((sub) => {
+    if (sub.nextPlan && new Date(sub.expiresAt) <= now) {
+      const plan = sub.nextPlan;
+      const dur = PLAN_LIMITS[plan]?.durationDays || 30;
+      changed = true;
+      return {
+        ...sub,
+        plan,
+        nextPlan: null,
+        status: "active",
+        expiresAt: new Date(Date.now() + dur * 86400000).toISOString(),
+      };
+    }
+    return sub;
+  });
+  const newBusinesses = freshStore.businesses.map((b) => {
+    const sub = freshStore.subscriptions.find((s) => s.businessId === b.id);
+    if (sub && sub.nextPlan && new Date(sub.expiresAt) <= now) {
+      return { ...b, plan: sub.nextPlan };
+    }
+    return b;
+  });
+  // FIX 8: Use updateStore (not saveStore) so broadcastChange() fires and other
+  // tabs are notified when a scheduled plan upgrade takes effect.
+  if (changed) {
+    updateStore((d) => ({
+      ...d,
+      subscriptions: newSubscriptions,
+      businesses: newBusinesses,
+    }));
+  }
 }
 
 // ============================================================
@@ -392,11 +433,14 @@ function handleRemoteUpdate(data) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data.store));
       if (activeTab && currentUser) {
         if (activeTab === "dashboard") {
-          updateDashboardChart();
+          // FIX 3: updateDashboardChart only exists on admin.js; guard before calling.
+          if (typeof updateDashboardChart === "function")
+            updateDashboardChart();
         } else if (activeTab !== "pos") {
           renderContent(activeTab);
         } else {
-          refreshPOSItemsOnly();
+          // FIX 4: refreshPOSItemsOnly only exists on admin.js/cashier.js; guard before calling.
+          if (typeof refreshPOSItemsOnly === "function") refreshPOSItemsOnly();
         }
         // Check if current user was suspended/business deactivated
         const store = getStore();
@@ -463,11 +507,14 @@ function startPolling() {
       _storeCache = null; // invalidate cache so next getStore() re-reads
       if (activeTab && currentUser) {
         if (activeTab === "dashboard") {
-          updateDashboardChart();
+          // FIX 3: guard — only defined on admin.js
+          if (typeof updateDashboardChart === "function")
+            updateDashboardChart();
         } else if (activeTab !== "pos") {
           renderContent(activeTab);
         } else {
-          refreshPOSItemsOnly();
+          // FIX 4: guard — only defined on admin.js / cashier.js
+          if (typeof refreshPOSItemsOnly === "function") refreshPOSItemsOnly();
         }
       }
     }
@@ -514,13 +561,13 @@ function resetSessionTimer() {
   clearTimeout(sessionTimer);
   clearTimeout(sessionWarnTimer);
   clearInterval(sessionCountdownInterval);
-  // Fix 18: Don't fire session warning on the login screen (no user logged in)
-  if (!currentUser) {
-    document.getElementById("session-warning").classList.remove("show");
-    return;
-  }
+  // FIX 1 & 20: #session-warning only exists on app pages, not auth.html.
+  // Always guard the element reference with a null check, and bail out
+  // immediately when no user is logged in (prevents crash on auth page).
+  const sw = document.getElementById("session-warning");
+  if (sw) sw.classList.remove("show");
+  if (!currentUser) return;
   // Guard: only run session timer when logged in to an app page
-  document.getElementById("session-warning").classList.remove("show");
   // SS-010: Skip timeout entirely for "remembered" sessions
   if (currentUser._rememberMe) return;
   // Warn at 28 min - show countdown for the final 2 minutes
@@ -553,6 +600,10 @@ function resetSessionTimer() {
 
 let _lastSessionReset = 0;
 function debouncedResetSession() {
+  // FIX 20: No-op when no user is logged in (auth page context).
+  // The event listeners are registered unconditionally on every page that loads
+  // shared.js, so we must guard here rather than at the listener level.
+  if (!currentUser) return;
   const now = Date.now();
   if (now - _lastSessionReset > 10000) {
     _lastSessionReset = now;
@@ -628,12 +679,28 @@ function formatDateShort(iso) {
     year: "numeric",
   });
 }
+// FIX 11: Use crypto.randomUUID() for collision-free IDs.
+// The old Date.now() + Math.random() approach could collide under rapid successive
+// calls within the same millisecond. randomUUID() is RFC 4122 compliant and
+// available in all modern browsers (Chrome 92+, Firefox 95+, Safari 15.4+).
 function uid() {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return crypto.randomUUID();
+  }
+  // Fallback for very old environments: keep prior approach but extend randomness
+  return `${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 9)}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
 function toast(msg, type = "default") {
   const c = document.getElementById("toast-container");
+  // FIX 2: Guard against missing container (defensive — every app page includes it,
+  // but guard prevents a crash if called before DOM is ready or on a partial page).
+  if (!c) return;
   const t = document.createElement("div");
   t.className = `toast ${
     type === "error"
@@ -678,10 +745,20 @@ function confirm2(title, msg, options) {
       overlay.classList.remove("open");
       okBtn.onclick = null;
       cancelBtn.onclick = null;
+      // FIX 6: Remove Escape key listener on cleanup
+      document.removeEventListener("keydown", escHandler);
       // Reset to defaults
       okBtn.textContent = "Confirm";
       okBtn.className = "btn btn-danger";
     };
+    // FIX 6: Allow dismissing the confirm dialog with the Escape key (accessibility)
+    function escHandler(e) {
+      if (e.key === "Escape") {
+        cleanup();
+        resolve(false);
+      }
+    }
+    document.addEventListener("keydown", escHandler);
     okBtn.onclick = () => {
       cleanup();
       resolve(true);
@@ -738,7 +815,8 @@ const Icon = {
 // AUTH STATE
 // ============================================================
 let currentUser = null;
-let selectedPlan = "starter";
+// FIX 18: selectedPlan was previously declared here, leaking into all pages.
+// It is only used by auth.js and is declared there instead.
 let activeTab = "";
 
 // ============================================================
@@ -746,6 +824,10 @@ let activeTab = "";
 // ============================================================
 function launchApp() {
   applyScheduledUpgrades();
+  // FIX 12: Prevent flash of empty/unstyled content during the synchronous
+  // route-guard + render phase. Body starts invisible (set in each role HTML)
+  // and is revealed here once the first render is complete.
+  document.body.style.visibility = "visible";
   // auth-container only exists on auth.html; on role pages the app is always visible
   const authEl = document.getElementById("auth-container");
   if (authEl) authEl.classList.add("hidden");
@@ -870,41 +952,41 @@ function buildSidebar() {
   );
 
   nav.innerHTML = `
-    <div class="nav-section-label">Main</div>
-    ${mainItems
-      .map(
-        (item) => `
-      <div class="nav-item" data-tab="${item.id}" onclick="navigate('${
+      <div class="nav-section-label">Main</div>
+      ${mainItems
+        .map(
+          (item) => `
+        <div class="nav-item" data-tab="${safeAttr(
           item.id
-        }')">
-${Icon[item.icon] || Icon.dashboard}
-<span class="nav-item-label">${item.label}</span>
-${
-  item.id === "messages" && unreadMsgCount > 0
-    ? `<span style="margin-left:auto;background:var(--red);color:white;font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px;font-family:var(--font-mono);min-width:18px;text-align:center">${
-        unreadMsgCount > 99 ? "99+" : unreadMsgCount
-      }</span>`
-    : ""
-}
-      </div>
-    `
-      )
-      .join("")}
-    <div class="nav-section-label" style="margin-top:8px">Account</div>
-    ${bottomItems
-      .map(
-        (item) => `
-      <div class="nav-item" data-tab="${item.id}" onclick="navigate('${
+        )}" onclick="navigate('${safeAttr(item.id)}')">
+  ${Icon[item.icon] || Icon.dashboard}
+  <span class="nav-item-label">${item.label}</span>
+  ${
+    item.id === "messages" && unreadMsgCount > 0
+      ? `<span style="margin-left:auto;background:var(--red);color:white;font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px;font-family:var(--font-mono);min-width:18px;text-align:center">${
+          unreadMsgCount > 99 ? "99+" : unreadMsgCount
+        }</span>`
+      : ""
+  }
+        </div>
+      `
+        )
+        .join("")}
+      <div class="nav-section-label" style="margin-top:8px">Account</div>
+      ${bottomItems
+        .map(
+          (item) => `
+        <div class="nav-item" data-tab="${safeAttr(
           item.id
-        }')">
-${Icon[item.icon] || Icon.settings}
-<span class="nav-item-label">${item.label}</span>
-${item.id === "subscriptions" ? subBadgeHTML : ""}
-      </div>
-    `
-      )
-      .join("")}
-  `;
+        )}" onclick="navigate('${safeAttr(item.id)}')">
+  ${Icon[item.icon] || Icon.settings}
+  <span class="nav-item-label">${item.label}</span>
+  ${item.id === "subscriptions" ? subBadgeHTML : ""}
+        </div>
+      `
+        )
+        .join("")}
+    `;
 }
 
 function handleHamburger() {

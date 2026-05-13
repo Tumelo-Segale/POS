@@ -633,12 +633,20 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
+  /* FIX 14: Prevent overflow on narrow phones (≤375px).
+     flex-shrink allows the right cluster to compress;
+     min-width:0 lets flex children shrink below their intrinsic size. */
+  flex-shrink: 0;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .user-badge {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .user-info {
@@ -660,6 +668,12 @@ body {
 @media (max-width: 480px) {
   .user-info {
     display: none;
+  }
+  /* FIX 14: On very narrow phones, shrink the status badge so it doesn't
+     push the user avatar off screen */
+  #sub-status-badge .badge {
+    font-size: 8px;
+    padding: 2px 5px;
   }
 }
 

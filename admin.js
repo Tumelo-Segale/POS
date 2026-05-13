@@ -1372,6 +1372,9 @@ function exportAuditLogs() {
 // POS
 // ============================================================
 let posCart = [];
+// FIX 5: Expose posCart on window so shared.js navigate() can reliably
+// detect it with typeof, regardless of script loading order.
+window.posCart = posCart;
 // Fix 20: Persist payment method in localStorage between navigation
 let posPayMethod = (() => {
   try {
@@ -2615,7 +2618,7 @@ function renderSubscriptions(area) {
               : ""
           }
           ${
-            sub.status === "cancelled" && st?.active && daysLeft <= 2
+            sub.status === "cancelled" && st?.active && daysLeft <= 5
               ? `<button class="btn btn-primary" onclick="handleRenew()">Renew Subscription</button>`
               : ""
           }
@@ -2623,7 +2626,7 @@ function renderSubscriptions(area) {
             biz.plan !== "trial" &&
             st?.active &&
             sub.status !== "cancelled" &&
-            daysLeft <= 2
+            daysLeft <= 5
               ? `<button class="btn btn-primary" onclick="handleRenew()">Renew Subscription</button>`
               : ""
           }
@@ -2636,10 +2639,11 @@ function renderSubscriptions(area) {
             biz.plan !== "trial" &&
             st?.active &&
             sub.status !== "cancelled" &&
-            daysLeft > 2
-              ? `<span style="font-size:11px;color:var(--gray-400);font-family:var(--font-mono)">Renewal available in last 2 days of subscription</span>`
+            daysLeft > 5
+              ? `<span style="font-size:11px;color:var(--gray-500);font-family:var(--font-mono)">Renewal opens in the last 5 days of your billing period.</span>`
               : ""
           }
+
           ${
             proratedNote
               ? `<span style="font-size:11px;color:var(--gray-400);font-family:var(--font-mono)">${proratedNote}</span>`
@@ -2669,9 +2673,9 @@ function handleUpgrade(targetPlan) {
     const currentRank = planOrder[biz.plan] ?? 0;
     const targetRank = planOrder[targetPlan] ?? 0;
     const isDowngrade = targetRank < currentRank;
-    if (!isDowngrade && daysLeft > 2 && st?.active && !st?.inGrace) {
+    if (!isDowngrade && daysLeft > 5 && st?.active && !st?.inGrace) {
       toast(
-        "Plan changes are only available in the last 2 days of your subscription.",
+        "Plan changes are only available in the last 5 days of your subscription.",
         "error"
       );
       return;

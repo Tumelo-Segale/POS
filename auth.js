@@ -4,6 +4,10 @@
 // Loaded by: auth.html only
 // ============================================================
 
+// FIX 18: selectedPlan was previously declared in shared.js (global pollution).
+// It belongs only here — auth.js is the only file that uses it.
+let selectedPlan = "starter";
+
 function updatePlanPriceDisplay() {
   // Subscription prices are ALWAYS in ZAR - always show R prefix regardless of selected country
   const trialEl = document.getElementById("plan-price-trial");

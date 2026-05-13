@@ -7,7 +7,7 @@ let completeRenewOverride = null;
 
 /**
  * Returns the YYYY-MM-DD string for midnight local time on a given Date.
- * Mirrors the same function in admin.js — avoids UTC-offset edge cases near midnight.
+ * Mirrors the same function in admin.js - avoids UTC-offset edge cases near midnight.
  */
 function localDateStr(d) {
   const y = d.getFullYear();
@@ -21,7 +21,7 @@ function localDateStr(d) {
  * doesn't throw a ReferenceError on the cashier page (dashboard isn't rendered here).
  */
 function updateDashboardChart() {
-  // Dashboard only exists on the admin page — nothing to update on cashier page.
+  // Dashboard only exists on the admin page - nothing to update on cashier page.
 }
 
 // ============================================================
@@ -746,7 +746,7 @@ function recordTransaction(total, type, discount) {
 // ============================================================
 
 // ============================================================
-// ITEMS (read-only view for cashier — write actions are role-gated inside)
+// ITEMS (read-only view for cashier - write actions are role-gated inside)
 // ============================================================
 function renderItems(area) {
   const store = getStore();
@@ -1186,7 +1186,7 @@ function deleteAccount() {
 // BOOT
 // ============================================================
 
-// SS-007: updatePlanPriceDisplay() is defined in auth.js — only call on auth.html
+// SS-007: updatePlanPriceDisplay() is defined in auth.js - only call on auth.html
 if (typeof updatePlanPriceDisplay === "function") updatePlanPriceDisplay();
 
 // POS cart unload warning (cashier page)

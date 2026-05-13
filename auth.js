@@ -5,7 +5,7 @@
 // ============================================================
 
 // FIX 18: selectedPlan was previously declared in shared.js (global pollution).
-// It belongs only here — auth.js is the only file that uses it.
+// It belongs only here - auth.js is the only file that uses it.
 let selectedPlan = "starter";
 
 function updatePlanPriceDisplay() {

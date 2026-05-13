@@ -2591,7 +2591,7 @@ function renderSubscriptions(area) {
           sub.status === "cancelled" && st?.active
             ? `<div class="alert alert-orange" style="margin-top:12px">${
                 Icon.alert
-              } Subscription cancelled — access remains until <strong>${formatDateShort(
+              } Subscription cancelled - access remains until <strong>${formatDateShort(
                 sub.expiresAt
               )}</strong>. Renew before that date to avoid losing access.</div>`
             : ""
@@ -2689,13 +2689,13 @@ function handleUpgrade(targetPlan) {
     const removedFeatures = [];
     if (biz.plan === "premium" && targetPlan === "starter") {
       removedFeatures.push(
-        "Multi-Store (up to 3 locations) — all location data becomes inaccessible"
+        "Multi-Store (up to 3 locations) - all location data becomes inaccessible"
       );
       removedFeatures.push(
-        "Audit Action Logs — log history becomes inaccessible"
+        "Audit Action Logs - log history becomes inaccessible"
       );
       removedFeatures.push(
-        "Monthly & Yearly Statement Exports — only weekly export remains"
+        "Monthly & Yearly Statement Exports - only weekly export remains"
       );
       removedFeatures.push("Unlimited Cashiers → Max 2 Cashiers");
       removedFeatures.push("Unlimited Items → Max 50 Items");

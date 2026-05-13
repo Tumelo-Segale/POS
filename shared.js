@@ -46,7 +46,7 @@
 // ============================================================
 // ROLE CONSTANTS (FIX 17)
 // ============================================================
-// Centralised role strings — use these instead of bare magic strings.
+// Centralised role strings - use these instead of bare magic strings.
 const ROLES = Object.freeze({
   SUPER_ADMIN: "super-admin",
   ADMIN: "admin",
@@ -298,7 +298,7 @@ function enforceSubscription(businessId) {
   const sub = store.subscriptions.find((s) => s.businessId === businessId);
   const isCancelledPastExpiry =
     sub && sub.status === "cancelled" && new Date() > new Date(sub.expiresAt);
-  // FIX 9: A null getSubStatus means there is no subscription record at all —
+  // FIX 9: A null getSubStatus means there is no subscription record at all -
   // treat as inactive rather than silently granting access.
   if (!st || !st.active || isCancelledPastExpiry) {
     // Auto-disable business
@@ -507,13 +507,13 @@ function startPolling() {
       _storeCache = null; // invalidate cache so next getStore() re-reads
       if (activeTab && currentUser) {
         if (activeTab === "dashboard") {
-          // FIX 3: guard — only defined on admin.js
+          // FIX 3: guard - only defined on admin.js
           if (typeof updateDashboardChart === "function")
             updateDashboardChart();
         } else if (activeTab !== "pos") {
           renderContent(activeTab);
         } else {
-          // FIX 4: guard — only defined on admin.js / cashier.js
+          // FIX 4: guard - only defined on admin.js / cashier.js
           if (typeof refreshPOSItemsOnly === "function") refreshPOSItemsOnly();
         }
       }
@@ -698,7 +698,7 @@ function uid() {
 
 function toast(msg, type = "default") {
   const c = document.getElementById("toast-container");
-  // FIX 2: Guard against missing container (defensive — every app page includes it,
+  // FIX 2: Guard against missing container (defensive - every app page includes it,
   // but guard prevents a crash if called before DOM is ready or on a partial page).
   if (!c) return;
   const t = document.createElement("div");
@@ -1063,7 +1063,7 @@ function _doNavigate(tab) {
     const active = enforceSubscription(currentUser.businessId);
     if (!active) {
       toast("Subscription expired. Functionality suspended.", "error");
-      // Cashiers have no subscriptions tab — redirect to contact support instead
+      // Cashiers have no subscriptions tab - redirect to contact support instead
       tab = currentUser.role === "cashier" ? "contact" : "subscriptions";
     }
   }

@@ -50,6 +50,8 @@
         {"@type":"Question","name":"Is there a free trial?","acceptedAnswer":{"@type":"Answer","text":"Yes. Every new business gets a 7-day free trial with no credit card required, with access to core POS features."}},
         {"@type":"Question","name":"What plans are available?","acceptedAnswer":{"@type":"Answer","text":"SaleStation offers a free 7-day Trial, a Starter plan at R200/month, and a Premium plan at R500/month. All billed in ZAR."}},
         {"@type":"Question","name":"What currencies are supported?","acceptedAnswer":{"@type":"Answer","text":"SaleStation supports ZAR (South Africa), BWP (Botswana), LSL (Lesotho), and NAD (Namibia) for displaying prices. All billing is in ZAR."}},
+        {"@type":"Question","name":"Does SaleStation support multiple store locations?","acceptedAnswer":{"@type":"Answer","text":"Yes. The Premium plan supports up to 3 store locations. Each branch has its own isolated inventory and cashiers only see items assigned to their location. Revenue is tracked per branch from the date of cashier assignment."}},
+        {"@type":"Question","name":"When can I renew my subscription?","acceptedAnswer":{"@type":"Answer","text":"The Renew button becomes available in the final 2 days of your billing cycle. Paid plans include a 2-day grace period after expiry before access is suspended."}},
         {"@type":"Question","name":"Can I cancel my subscription?","acceptedAnswer":{"@type":"Answer","text":"Yes, you can cancel at any time from your admin dashboard. You retain access until the end of your current billing period."}}
       ]
     }
@@ -1368,8 +1370,10 @@
                     <h2>Absolute Inventory Control</h2>
                     <p>Manage hundreds of items effortlessly. Add new products, set prices, and optionally track live
                         stock quantities - all updated in real time across every terminal.</p>
-                    <p>When stock hits 5 units, your cashiers are automatically warned. When it reaches zero, the item
-                        is locked out of the POS entirely - no manual toggling, no accidental overselling.</p>
+                    <p>Running multiple branches? Each location gets its own isolated inventory. Assign items
+                        exclusively to a branch, or mark them as shared to make them available everywhere. When stock
+                        hits 5 units, cashiers are warned automatically. When it reaches zero, the item is locked out
+                        of the POS entirely - no manual toggling, no accidental overselling.</p>
                 </div>
                 <div class="overview-image">
                     <svg width="72" height="72" fill="none" stroke="var(--gray-300)" stroke-width="1.5"
@@ -1443,8 +1447,8 @@
                 <div class="step-card">
                     <div class="step-number">02</div>
                     <h3>Add items & team</h3>
-                    <p>Load your inventory and prices. Assign staff to specific locations with dedicated secure logins.
-                    </p>
+                    <p>Load your inventory and prices. Assign items to specific branches or mark them as shared across
+                        all locations. Assign cashiers to branches with dedicated secure logins.</p>
                 </div>
                 <div class="step-card">
                     <div class="step-number">03</div>
@@ -1537,8 +1541,26 @@
                     </div>
                     <div>
                         <h3>Multi-Store Support</h3>
-                        <p>Got multiple branches? Assign staff to specific locations and view consolidated financial
-                            reports across all your stores.</p>
+                        <p>Got multiple branches? Assign cashiers to specific locations and give each branch its own
+                            isolated inventory. Revenue, transactions, and reports are tracked per branch from the
+                            moment a cashier is assigned — with a consolidated view across all stores.</p>
+                    </div>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-icon">
+                        <svg width="22" height="22" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" viewBox="0 0 24 24">
+                            <rect x="2" y="7" width="20" height="14" rx="2" />
+                            <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+                            <line x1="12" y1="12" x2="12" y2="16" />
+                            <line x1="10" y1="14" x2="14" y2="14" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h3>Branch Inventory Isolation</h3>
+                        <p>Each branch has its own independent inventory. Cashiers only see and sell items assigned to
+                            their location. Shared items can be made available across all branches simultaneously, while
+                            branch-specific items stay exclusive to their store.</p>
                     </div>
                 </div>
                 <div class="feature-item">
@@ -1656,6 +1678,7 @@
                         <li>Unlimited Items</li>
                         <li>Transaction Receipts</li>
                         <li>Multi-Store (up to 3 locations)</li>
+                        <li>Per-Branch Inventory Isolation</li>
                         <li>Audit Action Logs</li>
                         <li>Weekly, Monthly & Yearly Exports</li>
                         <li>2-day grace period</li>
@@ -1737,7 +1760,7 @@
                 <h4>2. Description of Service</h4>
                 <p>SaleStation is a cloud-based Point of Sale (POS) system designed for businesses operating in South
                     Africa, Botswana, Lesotho, and Namibia. The Platform provides tools for managing sales, inventory,
-                    cashiers, receipts, subscriptions, and multi-store operations.</p>
+                    cashiers, receipts, subscriptions, multi-store operations, and per-branch inventory isolation.</p>
 
                 <h4>3. Account Registration</h4>
                 <p>To access the Platform, you must register a business account. You agree to:</p>
@@ -1809,7 +1832,7 @@
                         onclick="closeTCModal()" style="color:var(--black);font-weight:600">Contact</a> section on our
                     website.</p>
 
-                <p style="margin-top:20px;font-size:12px;color:var(--gray-400)">Last updated: April 2026</p>
+                <p style="margin-top:20px;font-size:12px;color:var(--gray-400)">Last updated: May 2026</p>
             </div>
             <div class="tc-modal-footer">
                 <button class="btn btn-primary btn-full" onclick="closeTCModal()">I Understand</button>
@@ -1911,7 +1934,7 @@
                     <div class="faq-answer">
                         Paid plans (Starter and Premium) include a <strong>2-day grace period</strong> after expiry,
                         during which you can still log in and renew without losing access. After the grace period, your
-                        account is suspended until you renew. The Renew button becomes available in the final 5 days of
+                        account is suspended until you renew. The Renew button becomes available in the final 2 days of
                         your billing cycle. Trial plans have no grace period.
                     </div>
                 </div>
@@ -1942,8 +1965,29 @@
                     </div>
                     <div class="faq-answer">
                         Multi-store support is available on the <strong>Premium plan</strong>, allowing up to 3 store
-                        locations under a single business account. Each location can be managed from the Multi-Store
-                        section of the admin dashboard.
+                        locations under a single business account. Each branch has its own isolated inventory — cashiers
+                        only see and sell items assigned to their location. You can also mark items as shared to make
+                        them available across all branches. Revenue and transaction reports are tracked per branch from
+                        the moment a cashier is assigned, keeping your financial data accurate across locations. Manage
+                        everything from the Multi-Store section of your admin dashboard.
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <div class="faq-question" onclick="toggleFAQ(this)">
+                        How does branch inventory work?
+                        <svg class="faq-chevron" fill="none" stroke="currentColor" stroke-width="2.5"
+                            stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                            <polyline points="6 9 12 15 18 9" />
+                        </svg>
+                    </div>
+                    <div class="faq-answer">
+                        Each branch on the Premium plan has its own independent inventory. When you add or edit an item,
+                        you can assign it to a specific branch — or leave it unassigned to make it a <strong>shared
+                            item</strong> visible at all locations. Cashiers assigned to a branch only see their
+                        branch's
+                        items plus any shared items, never items belonging to another branch. This means your staff
+                        can't accidentally ring up stock from a different location.
                     </div>
                 </div>
 

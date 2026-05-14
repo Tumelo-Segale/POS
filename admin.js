@@ -233,11 +233,19 @@ function renderAdminDashboard(area) {
         (u) => u.businessId === bizId && u.role === "cashier"
       );
       const locTotals = locations.map((loc) => {
-        const locCashierIds = new Set(
-          cashiers.filter((c) => c.locationId === loc.id).map((c) => c.id)
-        );
+        const locCashiers = cashiers.filter((c) => c.locationId === loc.id);
         const locTotal = weekTxns
-          .filter((t) => locCashierIds.has(t.cashierId))
+          .filter((t) => {
+            const c = locCashiers.find((c) => c.id === t.cashierId);
+            if (!c) return false;
+            // Only count transactions that occurred AFTER the cashier was assigned to this branch
+            if (
+              c.locationAssignedAt &&
+              new Date(t.createdAt) < new Date(c.locationAssignedAt)
+            )
+              return false;
+            return true;
+          })
           .reduce((a, t) => a + (t.amount || 0), 0);
         return { name: loc.name, total: locTotal };
       });
@@ -410,15 +418,38 @@ function scheduleWeekReset() {
 // ============================================================
 // ITEMS
 // ============================================================
+// Module-level selected location filter for admin inventory view
+let _invSelectedLocationId = "all";
+
 function renderItems(area) {
   const store = getStore();
-  const items = store.items.filter(
-    (i) => i.businessId === currentUser.businessId
-  );
   const biz = store.businesses.find((b) => b.id === currentUser.businessId);
   const plan = biz?.plan || "starter";
   const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.starter;
   const isRestaurant = biz?.businessType === "restaurant";
+
+  // Locations for this business (only relevant on premium with multiple locations)
+  const locations = store.locations.filter(
+    (l) => l.businessId === currentUser.businessId
+  );
+  const hasLocations = locations.length > 0;
+
+  // Ensure selected location is still valid
+  if (
+    _invSelectedLocationId !== "all" &&
+    !locations.find((l) => l.id === _invSelectedLocationId)
+  ) {
+    _invSelectedLocationId = "all";
+  }
+
+  // Filter items: by business, and by location if one is selected
+  const allBizItems = store.items.filter(
+    (i) => i.businessId === currentUser.businessId
+  );
+  const items =
+    hasLocations && _invSelectedLocationId !== "all"
+      ? allBizItems.filter((i) => i.locationId === _invSelectedLocationId)
+      : allBizItems;
 
   const activeItemCount = items.filter((i) => i.status === "active").length;
   const itemLimitWarning =
@@ -443,6 +474,31 @@ function renderItems(area) {
 </select>`
       : "";
 
+  // Location selector — only shown when there are multiple locations (premium)
+  const locationFilterHTML = hasLocations
+    ? `<select id="inv-location-filter" class="form-select" style="height:34px;width:160px" onchange="setInvLocation(this.value)">
+  <option value="all"${
+    _invSelectedLocationId === "all" ? " selected" : ""
+  }>All Locations</option>
+  ${locations
+    .map(
+      (l) =>
+        `<option value="${safeAttr(l.id)}"${
+          _invSelectedLocationId === l.id ? " selected" : ""
+        }>${sanitize(l.name)}</option>`
+    )
+    .join("")}
+</select>`
+    : "";
+
+  // Show location column in table only when viewing "all locations"
+  const showLocCol = hasLocations && _invSelectedLocationId === "all";
+  const colCount =
+    (currentUser.role !== "cashier" ? 1 : 0) + // actions
+    (isRestaurant ? 1 : 0) + // category
+    (showLocCol ? 1 : 0) + // location
+    4; // name, price, stock, status
+
   area.innerHTML = `
     <div class="page-header">
       <h2 class="page-title">Inventory <span style="font-size:13px;color:var(--gray-400);font-weight:400;font-family:var(--font-main)">${activeItemCount}${
@@ -450,6 +506,7 @@ function renderItems(area) {
   } active${itemLimitWarning}</span></h2>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
 <div class="search-box"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--gray-400)"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="inv-search" type="text" placeholder="Search items..." style="padding-left:30px;height:34px" oninput="filterInventoryItems()" /></div>
+${locationFilterHTML}
 ${catFilterHTML}
 <select id="inv-status-filter" class="form-select" style="height:34px;width:140px" onchange="filterInventoryItems()">
   <option value="all">All</option>
@@ -467,30 +524,35 @@ ${
     <div class="card">
       <div class="table-wrapper">
 <table>
-  <thead><tr><th>Item Name</th>${
-    isRestaurant ? "<th>Category</th>" : ""
+  <thead><tr><th>Item Name</th>${isRestaurant ? "<th>Category</th>" : ""}${
+    showLocCol ? "<th>Location</th>" : ""
   }<th>Price</th><th>Stock</th><th>Status</th>${
     currentUser.role !== "cashier" ? "<th>Actions</th>" : ""
   }</tr></thead>
   <tbody id="inv-table-body">
     ${
       items.length === 0
-        ? `<tr><td colspan="${
-            currentUser.role !== "cashier"
-              ? isRestaurant
-                ? 6
-                : 5
-              : isRestaurant
-              ? 5
-              : 4
-          }"><div class="empty-state">No items yet. Add your first item.</div></td></tr>`
-        : items.map((item) => renderInvRow(item, isRestaurant)).join("")
+        ? `<tr><td colspan="${colCount}"><div class="empty-state">${
+            hasLocations && _invSelectedLocationId !== "all"
+              ? "No items for this location yet. Add your first item."
+              : "No items yet. Add your first item."
+          }</div></td></tr>`
+        : items
+            .map((item) =>
+              renderInvRow(item, isRestaurant, showLocCol, locations)
+            )
+            .join("")
     }
   </tbody>
 </table>
       </div>
     </div>
   `;
+}
+
+function setInvLocation(locId) {
+  _invSelectedLocationId = locId;
+  renderItems(document.getElementById("content-area"));
 }
 
 function renderInvStockCell(item) {
@@ -503,16 +565,25 @@ function renderInvStockCell(item) {
   return `<span>${item.stock}</span>`;
 }
 
-function renderInvRow(item, isRestaurant) {
+function renderInvRow(item, isRestaurant, showLocCol, locations) {
   const catLabels = { meals: "Meals", drinks: "Drinks", others: "Others" };
   const catCell = isRestaurant
     ? `<td><span class="badge badge-gray">${
         catLabels[item.category] || item.category || "-"
       }</span></td>`
     : "";
+  const locName = showLocCol
+    ? (() => {
+        if (!item.locationId) return "-";
+        const loc = (locations || []).find((l) => l.id === item.locationId);
+        return loc ? sanitize(loc.name) : "-";
+      })()
+    : null;
+  const locCell = showLocCol ? `<td class="text-muted">${locName}</td>` : "";
   return `<tr>
         <td><strong>${sanitize(item.name)}</strong></td>
         ${catCell}
+        ${locCell}
         <td class="text-mono">${formatCurrency(item.price)}</td>
         <td class="text-mono">${renderInvStockCell(item)}</td>
         <td><span class="badge ${
@@ -549,9 +620,20 @@ function _doFilterInventory() {
   const store = getStore();
   const biz = store.businesses.find((b) => b.id === currentUser.businessId);
   const isRestaurant = biz?.businessType === "restaurant";
-  const items = store.items.filter(
+  const locations = store.locations.filter(
+    (l) => l.businessId === currentUser.businessId
+  );
+  const hasLocations = locations.length > 0;
+  const showLocCol = hasLocations && _invSelectedLocationId === "all";
+
+  const allBizItems = store.items.filter(
     (i) => i.businessId === currentUser.businessId
   );
+  const items =
+    hasLocations && _invSelectedLocationId !== "all"
+      ? allBizItems.filter((i) => i.locationId === _invSelectedLocationId)
+      : allBizItems;
+
   const filtered = items.filter((i) => {
     const matchName = i.name.toLowerCase().includes(q);
     let matchStatus;
@@ -566,19 +648,16 @@ function _doFilterInventory() {
   });
   const tbody = document.getElementById("inv-table-body");
   if (!tbody) return;
-  const cols =
-    currentUser.role !== "cashier"
-      ? isRestaurant
-        ? 6
-        : 5
-      : isRestaurant
-      ? 5
-      : 4;
+  const colCount =
+    (currentUser.role !== "cashier" ? 1 : 0) +
+    (isRestaurant ? 1 : 0) +
+    (showLocCol ? 1 : 0) +
+    4;
   if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="${cols}"><div class="empty-state">No items match your search.</div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="${colCount}"><div class="empty-state">No items match your search.</div></td></tr>`;
   } else {
     tbody.innerHTML = filtered
-      .map((item) => renderInvRow(item, isRestaurant))
+      .map((item) => renderInvRow(item, isRestaurant, showLocCol, locations))
       .join("");
   }
 }
@@ -594,6 +673,36 @@ function openItemModal(itemId) {
   const isRestaurant = biz?.businessType === "restaurant";
   const sym = getCurrencySymbol();
   const isTracked = item && item.stock !== null && item.stock !== undefined;
+
+  // Location selector: shown whenever at least one branch/location exists
+  const locations = store.locations.filter(
+    (l) => l.businessId === currentUser.businessId
+  );
+  const hasLocations = locations.length > 0;
+  // Pre-select: use the item's existing locationId, or the current filter, or ""
+  const preselectedLoc = item?.locationId
+    ? item.locationId
+    : _invSelectedLocationId !== "all"
+    ? _invSelectedLocationId
+    : "";
+  const locationField = hasLocations
+    ? `
+    <div class="form-group">
+      <label class="form-label">Branch / Location</label>
+      <select id="m-item-location" class="form-select">
+        <option value="">— No specific branch (shared) —</option>
+        ${locations
+          .map(
+            (l) =>
+              `<option value="${safeAttr(l.id)}"${
+                preselectedLoc === l.id ? " selected" : ""
+              }>${sanitize(l.name)}</option>`
+          )
+          .join("")}
+      </select>
+      <div style="font-size:11px;color:var(--gray-400);margin-top:4px">Leave blank to make this item available to all branches.</div>
+    </div>`
+    : "";
 
   const categoryField = isRestaurant
     ? `
@@ -619,6 +728,7 @@ function openItemModal(itemId) {
     <div class="form-group"><label class="form-label">Item Name</label><input id="m-item-name" class="form-input" value="${
       item ? sanitize(item.name) : ""
     }" placeholder="e.g. Coca Cola 500ml"/></div>
+    ${locationField}
     ${categoryField}
     <div class="form-group"><label class="form-label">Price (${sym})</label><input id="m-item-price" class="form-input" type="number" min="0" max="999999" step="0.01" value="${
       item ? item.price : ""
@@ -677,6 +787,15 @@ function saveItem(itemId) {
     return false;
   }
 
+  // Location assignment — optional even when branches exist
+  const locations = store.locations.filter(
+    (l) => l.businessId === currentUser.businessId
+  );
+  const hasLocations = locations.length > 0;
+  const locationEl = document.getElementById("m-item-location");
+  const locationId = locationEl ? locationEl.value : "";
+  // No mandatory check — empty means "shared / no specific branch"
+
   const prevSearch = document.getElementById("inv-search")?.value || "";
   const prevStatus =
     document.getElementById("inv-status-filter")?.value || "all";
@@ -699,6 +818,7 @@ function saveItem(itemId) {
               price,
               stock: stockMode ? stockQty : i.stock,
               ...(isRestaurant ? { category } : {}),
+              locationId: hasLocations ? locationId : i.locationId || "",
             }
           : i
       ),
@@ -733,6 +853,7 @@ function saveItem(itemId) {
           stock: stockQty,
           status: "active",
           ...(isRestaurant ? { category } : {}),
+          locationId: hasLocations ? locationId : "",
         },
       ],
     }));
@@ -983,6 +1104,8 @@ function saveCashier(cashierId) {
       return;
     }
     const updatedPass = password ? password : existingCashier.password;
+    const prevLocation = existingCashier.locationId || "";
+    const locationChanged = locationId !== prevLocation;
     updateStore((d) => ({
       ...d,
       users: d.users.map((u) =>
@@ -994,6 +1117,13 @@ function saveCashier(cashierId) {
               contact,
               password: updatedPass,
               locationId,
+              // Record timestamp when cashier is assigned/re-assigned to a location
+              // so that branch transaction history starts from this point
+              ...(locationChanged && locationId
+                ? { locationAssignedAt: new Date().toISOString() }
+                : locationChanged && !locationId
+                ? { locationAssignedAt: null }
+                : {}),
             }
           : u
       ),
@@ -1036,6 +1166,10 @@ function saveCashier(cashierId) {
           role: "cashier",
           status: "active",
           locationId,
+          // Record when cashier is first assigned to a branch
+          ...(locationId
+            ? { locationAssignedAt: new Date().toISOString() }
+            : {}),
         },
       ],
     }));
@@ -1143,7 +1277,7 @@ function renderLocations(area) {
     </div>
     <div style="margin-top:20px">
       <div class="card">
-<div class="card-header"><span class="card-title">Centralized Inventory by Location</span></div>
+<div class="card-header"><span class="card-title">Inventory & Revenue by Location</span></div>
 <div class="card-body">
   ${
     locations.length === 0
@@ -1156,18 +1290,34 @@ function renderLocations(area) {
                 u.role === "cashier" &&
                 u.locationId === l.id
             );
-            const txns = store.transactions.filter(
-              (t) =>
-                t.businessId === currentUser.businessId &&
-                cashiers.map((c) => c.id).includes(t.cashierId)
-            );
+            const txns = store.transactions.filter((t) => {
+              if (t.businessId !== currentUser.businessId) return false;
+              const c = cashiers.find((c) => c.id === t.cashierId);
+              if (!c) return false;
+              // Only count transactions after the cashier was assigned to this branch
+              if (
+                c.locationAssignedAt &&
+                new Date(t.createdAt) < new Date(c.locationAssignedAt)
+              )
+                return false;
+              return true;
+            });
             const total = txns.reduce((a, t) => a + t.amount, 0);
+            const locItems = store.items.filter(
+              (i) =>
+                i.businessId === currentUser.businessId && i.locationId === l.id
+            );
+            const activeLocItems = locItems.filter(
+              (i) => i.status === "active"
+            ).length;
             return `<div style="padding:12px;border:1px solid var(--gray-100);border-radius:var(--radius);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
         <div><strong>${sanitize(
           l.name
         )}</strong><div class="text-muted text-sm">${
               cashiers.length
-            } cashier(s) · ${txns.length} transactions</div></div>
+            } cashier(s) · ${activeLocItems} item(s) · ${
+              txns.length
+            } transactions</div></div>
         <div class="text-mono font-bold">${formatCurrency(total)}</div>
       </div>`;
           })
@@ -1359,6 +1509,17 @@ function exportAuditLogs() {
       ])
     );
   const ws = XLSX.utils.aoa_to_sheet(rows);
+
+  // Auto-fit column widths with per-column minimums to ensure content fits
+  const minWidths = [20, 18, 12, 30, 30]; // Date & Time, User, Role, Action, Target
+  const colWidths = rows[0].map((_, colIdx) => {
+    const dataMax = Math.max(
+      ...rows.map((row) => String(row[colIdx] || "").length)
+    );
+    return Math.max(dataMax + 4, minWidths[colIdx] || 14);
+  });
+  ws["!cols"] = colWidths.map((w) => ({ wch: Math.min(w, 80) }));
+
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Audit Logs");
   XLSX.writeFile(

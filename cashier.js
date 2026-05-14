@@ -65,10 +65,30 @@ function selectRenewPlan(plan) {
 
 function refreshPOSItemCache() {
   const store = getStore();
-  // Include all active items so we can show out-of-stock state; stock===0 items will be rendered as disabled
-  _posItems = store.items.filter(
-    (i) => i.businessId === currentUser.businessId && i.status === "active"
+  // Branch isolation rules:
+  // - Items with a locationId belong exclusively to that branch.
+  // - Items with no locationId are "shared" and visible to all cashiers.
+  // - A cashier assigned to a branch sees: their branch items + shared items.
+  // - A cashier with no branch sees: shared items only.
+  // - If no branches exist at all: all items are visible (backwards-compatible).
+  const cashierLocationId = currentUser.locationId || "";
+  const locations = store.locations.filter(
+    (l) => l.businessId === currentUser.businessId
   );
+  const hasLocations = locations.length > 0;
+  _posItems = store.items.filter((i) => {
+    if (i.businessId !== currentUser.businessId) return false;
+    if (i.status !== "active") return false;
+    if (!hasLocations) return true; // No branches — show all
+    const itemIsShared = !i.locationId;
+    if (cashierLocationId) {
+      // Branch cashier: their branch items + shared items
+      return itemIsShared || i.locationId === cashierLocationId;
+    } else {
+      // Unassigned cashier: shared items only
+      return itemIsShared;
+    }
+  });
 }
 
 function refreshPOSItemsOnly() {
@@ -750,13 +770,30 @@ function recordTransaction(total, type, discount) {
 // ============================================================
 function renderItems(area) {
   const store = getStore();
-  const items = store.items.filter(
-    (i) => i.businessId === currentUser.businessId
-  );
   const biz = store.businesses.find((b) => b.id === currentUser.businessId);
   const plan = biz?.plan || "starter";
   const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.starter;
   const isRestaurant = biz?.businessType === "restaurant";
+
+  // Branch isolation: branch cashier sees their items + shared items.
+  // Unassigned cashier sees shared items only. No branches = show all.
+  const cashierLocationId = currentUser.locationId || "";
+  const locations = store.locations.filter(
+    (l) => l.businessId === currentUser.businessId
+  );
+  const hasLocations = locations.length > 0;
+  const allBizItems = store.items.filter(
+    (i) => i.businessId === currentUser.businessId
+  );
+  const items = !hasLocations
+    ? allBizItems
+    : allBizItems.filter((i) => {
+        const shared = !i.locationId;
+        if (cashierLocationId)
+          return shared || i.locationId === cashierLocationId;
+        return shared;
+      });
+
   const activeItemCount = items.filter((i) => i.status === "active").length;
 
   const catFilterHTML =
@@ -770,11 +807,22 @@ function renderItems(area) {
 </select>`
       : "";
 
+  // Location badge for cashier — show which branch they're viewing
+  const locName =
+    hasLocations && cashierLocationId
+      ? locations.find((l) => l.id === cashierLocationId)?.name || ""
+      : "";
+  const locBadge = locName
+    ? `<span style="font-size:12px;color:var(--gray-500);font-family:var(--font-mono);margin-left:8px">${sanitize(
+        locName
+      )}</span>`
+    : "";
+
   area.innerHTML = `
   <div class="page-header">
     <h2 class="page-title">Items <span style="font-size:13px;color:var(--gray-400);font-weight:400;font-family:var(--font-main)">${activeItemCount}${
     limits.items !== Infinity ? " / " + limits.items : ""
-  } active</span></h2>
+  } active${locBadge}</span></h2>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <div class="search-box"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--gray-400)"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="inv-search" type="text" placeholder="Search items..." style="padding-left:30px;height:34px" oninput="filterInventoryItems()" /></div>
       ${catFilterHTML}
@@ -797,7 +845,11 @@ function renderItems(area) {
             items.length === 0
               ? `<tr><td colspan="${
                   isRestaurant ? 5 : 4
-                }"><div class="empty-state">No items in inventory.</div></td></tr>`
+                }"><div class="empty-state">${
+                  hasLocations && cashierLocationId
+                    ? "No items for your location yet."
+                    : "No items in inventory."
+                }</div></td></tr>`
               : items.map((item) => renderInvRow(item, isRestaurant)).join("")
           }
         </tbody>
@@ -847,9 +899,22 @@ function _doFilterInventory() {
   const store = getStore();
   const biz = store.businesses.find((b) => b.id === currentUser.businessId);
   const isRestaurant = biz?.businessType === "restaurant";
-  const items = store.items.filter(
+  const cashierLocationId = currentUser.locationId || "";
+  const locations = store.locations.filter(
+    (l) => l.businessId === currentUser.businessId
+  );
+  const hasLocations = locations.length > 0;
+  const allBizItems = store.items.filter(
     (i) => i.businessId === currentUser.businessId
   );
+  const items = !hasLocations
+    ? allBizItems
+    : allBizItems.filter((i) => {
+        const shared = !i.locationId;
+        if (cashierLocationId)
+          return shared || i.locationId === cashierLocationId;
+        return shared;
+      });
   const filtered = items.filter((i) => {
     const matchName = i.name.toLowerCase().includes(q);
     let matchStatus;

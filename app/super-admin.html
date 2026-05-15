@@ -4,14 +4,13 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SaleStation - POS</title>
+    <title>SaleStation - Super Admin</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link
         href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap"
         rel="stylesheet" />
-    <link rel="shortcut icon" href="./icon.ico" type="image/x-icon">
-    <!-- Fix #16: Added Paystack script (was missing from cashier.html) -->
-    <script src="https://js.paystack.co/v1/inline.js"></script>
+    <link rel="shortcut icon" href="../assets/icon.ico" type="image/x-icon">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <link rel="stylesheet" href="shared.css" />
     <style>
         body {
@@ -26,7 +25,7 @@
         <aside id="sidebar">
             <div class="sidebar-logo">
                 <div class="sidebar-logo-inner">
-                    <div class="sidebar-logo-icon"><img src="Logo-icon.png" alt="SaleStation"
+                    <div class="sidebar-logo-icon"><img src="../assets/Logo-icon.png" alt="SaleStation"
                             style="width:22px;height:22px;object-fit:contain;filter:invert(1)" /></div>
                     <span class="sidebar-logo-text">SaleStation</span>
                 </div>
@@ -60,7 +59,7 @@
                             <line x1="3" y1="6" x2="21" y2="6" />
                             <line x1="3" y1="18" x2="21" y2="18" />
                         </svg></button>
-                    <span class="topbar-title" id="topbar-title">POS</span>
+                    <span class="topbar-title" id="topbar-title">Dashboard</span>
                 </div>
                 <div class="topbar-right">
                     <div id="sub-status-badge"></div>
@@ -123,30 +122,16 @@
     </div>
 
     <script src="shared.js"></script>
-    <script src="cashier.js"></script>
+    <script src="super-admin.js"></script>
     <script>
-        (function initCashier() {
+        (function initSuperAdmin() {
             const store = getStore();
             if (!store.currentUser) { window.location.href = 'auth.html'; return; }
-            if (store.currentUser.role === 'super-admin') { window.location.href = 'super-admin.html'; return; }
-            if (store.currentUser.role === 'admin') { window.location.href = 'admin.html'; return; }
-            currentUser = store.currentUser;
-            if (currentUser.businessId) {
-                const biz = store.businesses.find((b) => b.id === currentUser.businessId);
-                if (biz && biz.status === 'inactive') {
-                    updateStore((d) => ({ ...d, currentUser: null }));
-                    window.location.href = 'auth.html'; return;
-                }
-                const st = getSubStatus(currentUser.businessId);
-                if (st && !st.active) {
-                    updateStore((d) => ({
-                        ...d,
-                        businesses: d.businesses.map((b) => b.id === currentUser.businessId ? { ...b, status: 'inactive' } : b),
-                        currentUser: null,
-                    }));
-                    window.location.href = 'auth.html'; return;
-                }
+            if (store.currentUser.role !== 'super-admin') {
+                window.location.href = store.currentUser.role === 'cashier' ? 'cashier.html' : 'admin.html';
+                return;
             }
+            currentUser = store.currentUser;
             launchApp();
         })();
     </script>

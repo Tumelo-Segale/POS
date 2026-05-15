@@ -10,15 +10,19 @@
         href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap"
         rel="stylesheet" />
     <link rel="shortcut icon" href="./icon.ico" type="image/x-icon">
-    <!-- SheetJS for Excel export (needed by completeRegistration flow) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <!-- Paystack Inline JS -->
+    <!-- Paystack Inline JS - required for registration payment flow -->
     <script src="https://js.paystack.co/v1/inline.js"></script>
+    <!-- Fix #15: Removed unnecessary SheetJS (~1MB) - auth page never generates Excel files -->
     <link rel="stylesheet" href="shared.css" />
+    <!-- Fix #17: Added body visibility hidden to prevent FOUC, matching admin/cashier/super-admin -->
+    <style>
+        body {
+            visibility: hidden;
+        }
+    </style>
 </head>
 
 <body>
-    <!-- AUTH CONTAINER -->
     <div id="auth-container">
         <!-- LOGIN -->
         <div id="login-page" class="auth-card">
@@ -46,9 +50,10 @@
             </div>
             <div class="form-group">
                 <label class="form-label">Password</label>
-                <div class="pw-wrap"><input id="login-password" type="password" class="form-input"
-                        placeholder="••••••••" autocomplete="current-password" />
-                    <button class="pw-toggle" type="button" onclick="togglePw('login-password',this)"><svg width="15"
+                <div class="pw-wrap">
+                    <input id="login-password" type="password" class="form-input" placeholder="••••••••"
+                        autocomplete="current-password" />
+                    <button class="pw-toggle" type="button" onclick="togglePw('login-password')"><svg width="15"
                             height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                             <circle cx="12" cy="12" r="3" />
@@ -101,9 +106,9 @@
                     placeholder="owner@business.com" /></div>
             <div class="form-group">
                 <label class="form-label">Password <span class="required-star">*</span></label>
-                <div class="pw-wrap"><input id="reg-password" type="password" class="form-input"
-                        placeholder="Min. 6 characters" />
-                    <button class="pw-toggle" type="button" onclick="togglePw('reg-password',this)"><svg width="15"
+                <div class="pw-wrap">
+                    <input id="reg-password" type="password" class="form-input" placeholder="Min. 6 characters" />
+                    <button class="pw-toggle" type="button" onclick="togglePw('reg-password')"><svg width="15"
                             height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                             <circle cx="12" cy="12" r="3" />
@@ -134,6 +139,8 @@
         </div>
 
         <!-- REGISTER STEP 2 – Plan -->
+        <!-- Fix #24/#25: Plan cards now driven by PLAN_LIMITS.features via JS (updatePlanPriceDisplay)
+             so they stay in sync with the single source of truth in shared.js. -->
         <div id="register-plan-page" class="auth-card hidden">
             <div style="margin-bottom:16px">
                 <a href="index.html"
@@ -150,50 +157,8 @@
                 <h1>Choose Your Plan</h1>
                 <p>Step 2 of 2 - Select the plan that fits your business</p>
             </div>
-            <!-- Trial -->
-            <div id="plan-trial" class="plan-card" onclick="selectPlan('trial')">
-                <div class="plan-card-header">
-                    <span class="plan-name">Trial <span class="plan-badge-tag trial-badge">7-Day Free</span></span>
-                    <span class="plan-price" id="plan-price-trial">R0<span>/7 days</span></span>
-                </div>
-                <ul class="plan-features">
-                    <li>Max 1 Cashier</li>
-                    <li>Max 15 Items</li>
-                    <li>Transaction Receipts</li>
-                    <li>No statement downloads</li>
-                    <li>No grace period</li>
-                </ul>
-            </div>
-            <!-- Starter -->
-            <div id="plan-starter" class="plan-card selected" onclick="selectPlan('starter')">
-                <div class="plan-card-header">
-                    <span class="plan-name">Starter</span>
-                    <span class="plan-price" id="plan-price-starter">R200<span>/mo</span></span>
-                </div>
-                <ul class="plan-features">
-                    <li>Max 2 Cashiers</li>
-                    <li>Max 50 Items</li>
-                    <li>Transaction Receipts</li>
-                    <li>Weekly Statement Export</li>
-                    <li>2-day grace period</li>
-                </ul>
-            </div>
-            <!-- Premium -->
-            <div id="plan-premium" class="plan-card" onclick="selectPlan('premium')">
-                <div class="plan-card-header">
-                    <span class="plan-name">Premium <span class="plan-badge-tag popular-badge">Popular</span></span>
-                    <span class="plan-price" id="plan-price-premium">R500<span>/mo</span></span>
-                </div>
-                <ul class="plan-features">
-                    <li>Unlimited Cashiers</li>
-                    <li>Unlimited Items</li>
-                    <li>Transaction Receipts</li>
-                    <li>Multi-Store (up to 3 locations)</li>
-                    <li>Audit Action Logs</li>
-                    <li>Weekly, Monthly & Yearly Exports</li>
-                    <li>2-day grace period</li>
-                </ul>
-            </div>
+            <!-- Plan cards are populated by renderPlanCards() called after shared.js loads -->
+            <div id="plan-cards-container"></div>
             <div style="display:flex;gap:10px;margin-top:16px">
                 <button class="btn btn-outline btn-lg" style="flex:1" onclick="showPage('register-page')">←
                     Back</button>
@@ -204,7 +169,7 @@
         </div>
     </div>
 
-    <!-- MODAL (used by simulatePaystack & showLoginSubscriptionModal) -->
+    <!-- MODAL -->
     <div id="modal-overlay" class="modal-overlay" onclick="closeModal(event)">
         <div class="modal" onclick="event.stopPropagation()">
             <div class="modal-header">
@@ -232,7 +197,6 @@
         </div>
     </div>
 
-    <!-- Toast Containers -->
     <div id="toast-container" role="status" aria-live="polite" aria-atomic="false"></div>
     <div id="toast-container-assertive" role="alert" aria-live="assertive" aria-atomic="true"
         style="position:fixed;bottom:-9999px;left:-9999px;width:1px;height:1px;overflow:hidden"></div>
@@ -241,6 +205,37 @@
 
     <script src="shared.js"></script>
     <script src="auth.js"></script>
+    <script>
+        // Render plan cards from PLAN_LIMITS so auth.html stays in sync
+        // with shared.js (fixes issues #24 and #25).
+        (function renderPlanCards() {
+            const featureList = (plan) =>
+                (PLAN_LIMITS[plan].features || []).map((f) => `<li>${f}</li>`).join("");
+            document.getElementById("plan-cards-container").innerHTML = `
+                <div id="plan-trial" class="plan-card" onclick="selectPlan('trial')">
+                    <div class="plan-card-header">
+                        <span class="plan-name">Trial <span class="plan-badge-tag trial-badge">7-Day Free</span></span>
+                        <span class="plan-price" id="plan-price-trial">R0<span>/7 days</span></span>
+                    </div>
+                    <ul class="plan-features">${featureList("trial")}</ul>
+                </div>
+                <div id="plan-starter" class="plan-card selected" onclick="selectPlan('starter')">
+                    <div class="plan-card-header">
+                        <span class="plan-name">Starter</span>
+                        <span class="plan-price" id="plan-price-starter">R${PLAN_LIMITS.starter.price}<span>/mo</span></span>
+                    </div>
+                    <ul class="plan-features">${featureList("starter")}</ul>
+                </div>
+                <div id="plan-premium" class="plan-card" onclick="selectPlan('premium')">
+                    <div class="plan-card-header">
+                        <span class="plan-name">Premium <span class="plan-badge-tag popular-badge">Popular</span></span>
+                        <span class="plan-price" id="plan-price-premium">R${PLAN_LIMITS.premium.price}<span>/mo</span></span>
+                    </div>
+                    <ul class="plan-features">${featureList("premium")}</ul>
+                </div>`;
+            document.body.style.visibility = "visible";
+        })();
+    </script>
 </body>
 
 </html>

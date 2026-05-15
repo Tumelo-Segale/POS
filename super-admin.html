@@ -20,7 +20,6 @@
 </head>
 
 <body>
-    <!-- APP SHELL -->
     <div id="app-container">
         <div id="sidebar-overlay" onclick="closeMobileSidebar()"></div>
         <aside id="sidebar">
@@ -81,7 +80,6 @@
         </div>
     </div>
 
-    <!-- MODAL -->
     <div id="modal-overlay" class="modal-overlay" onclick="closeModal(event)">
         <div class="modal" onclick="event.stopPropagation()">
             <div class="modal-header">
@@ -97,7 +95,6 @@
         </div>
     </div>
 
-    <!-- CONFIRM POPUP -->
     <div id="confirm-overlay" class="confirm-overlay">
         <div class="confirm-box">
             <h3 id="confirm-title">Confirm Action</h3>
@@ -109,34 +106,27 @@
         </div>
     </div>
 
-    <!-- Toast Containers -->
     <div id="toast-container" role="status" aria-live="polite" aria-atomic="false"></div>
     <div id="toast-container-assertive" role="alert" aria-live="assertive" aria-atomic="true"
         style="position:fixed;bottom:-9999px;left:-9999px;width:1px;height:1px;overflow:hidden"></div>
     <div id="page-title-announce" role="status" aria-live="polite" aria-atomic="true"
         style="position:fixed;bottom:-9999px;left:-9999px;width:1px;height:1px;overflow:hidden"></div>
 
-    <!-- Session Warning -->
     <div id="session-warning">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
             <span>Session expiring in <strong id="session-countdown">2:00</strong></span>
             <button onclick="resetSessionTimer();document.getElementById('session-warning').classList.remove('show')"
-                style="background:var(--black);color:var(--white);border:none;border-radius:2px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:var(--font-main)">
-                Stay Logged In
-            </button>
+                style="background:var(--black);color:var(--white);border:none;border-radius:2px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:var(--font-main)">Stay
+                Logged In</button>
         </div>
     </div>
 
     <script src="shared.js"></script>
     <script src="super-admin.js"></script>
     <script>
-        // Route guard: only super-admin allowed
         (function initSuperAdmin() {
             const store = getStore();
-            if (!store.currentUser) {
-                window.location.href = 'auth.html';
-                return;
-            }
+            if (!store.currentUser) { window.location.href = 'auth.html'; return; }
             if (store.currentUser.role !== 'super-admin') {
                 window.location.href = store.currentUser.role === 'cashier' ? 'cashier.html' : 'admin.html';
                 return;

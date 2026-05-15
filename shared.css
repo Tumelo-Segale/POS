@@ -1828,3 +1828,191 @@ td {
 #session-warning.show {
   display: block;
 }
+
+/* ============================================================
+   POS FIXES — category tabs, layout height, item grid
+   ============================================================ */
+
+/* Category tabs strip above the item grid */
+.pos-cat-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid var(--gray-100);
+  flex-wrap: wrap;
+  background: var(--white);
+}
+
+/* Make POS layout fill the remaining viewport height correctly */
+.pos-layout {
+  display: flex;
+  height: calc(100vh - 56px); /* topbar is 56px */
+  overflow: hidden;
+  gap: 0;
+}
+
+/* Left panel (search + grid) */
+.pos-items-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Search bar inside POS */
+.pos-search {
+  position: relative;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--gray-100);
+  background: var(--white);
+}
+
+.pos-search svg {
+  position: absolute;
+  left: 25px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--gray-400);
+  pointer-events: none;
+}
+
+.pos-search input {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px 0 36px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  font-family: var(--font-main);
+  font-size: 14px;
+  outline: none;
+  background: var(--gray-50);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.pos-search input:focus {
+  border-color: var(--black);
+  background: var(--white);
+}
+
+/* Scrollable item grid */
+.pos-items-grid {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px;
+  align-content: start;
+  background: var(--gray-50);
+}
+
+/* Right cart panel */
+.pos-cart {
+  width: 320px;
+  min-width: 280px;
+  background: var(--white);
+  border-left: 1px solid var(--gray-100);
+  display: flex;
+  flex-direction: column;
+  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.04);
+}
+
+/* Mobile: stack vertically */
+@media (max-width: 768px) {
+  .pos-layout {
+    flex-direction: column;
+    height: auto;
+    overflow: visible;
+  }
+  .pos-cart {
+    width: 100%;
+    min-width: unset;
+    border-left: none;
+    border-top: 1px solid var(--gray-100);
+  }
+  .pos-items-grid {
+    max-height: 45vh;
+  }
+}
+
+@media (max-width: 900px) {
+  .pos-cart {
+    width: 260px;
+    min-width: 240px;
+  }
+}
+
+/* POS item button — border always visible, proper states */
+.pos-item-btn {
+  background: var(--white);
+  border: 1.5px solid var(--gray-300);
+  border-radius: var(--radius);
+  padding: 14px 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.12s, background 0.12s, transform 0.1s;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  position: relative;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 72px;
+}
+
+.pos-item-btn:hover:not(:disabled) {
+  border-color: var(--black);
+  background: var(--gray-50);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.pos-item-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* Flash animation on add-to-cart */
+.pos-item-btn.flash {
+  animation: posItemFlash 0.35s ease forwards;
+}
+
+/* Low stock — amber tint */
+.pos-item-btn.pos-item-low-stock {
+  background: var(--accent-bg);
+  border-color: var(--accent);
+}
+.pos-item-btn.pos-item-low-stock:hover {
+  background: #f9e9b0;
+  border-color: #b8880f;
+}
+
+/* Out of stock — greyed out, not clickable */
+.pos-item-btn.pos-item-out-of-stock,
+.pos-item-btn:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+  background: var(--gray-100);
+  border-color: var(--gray-200);
+  pointer-events: none;
+  box-shadow: none;
+  transform: none;
+}
+
+.pos-item-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--black);
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.pos-item-price {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gray-600);
+  font-family: var(--font-mono);
+}
+
+.pos-item-low-stock .pos-item-price {
+  color: #8a6200;
+}

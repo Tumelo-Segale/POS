@@ -5,26 +5,12 @@
 // ============================================================
 
 // ============================================================
-// STORAGE - Scalability Architecture
+// STORAGE
 // ============================================================
-// This frontend simulates a multi-tenant POS platform in localStorage.
-// In production this would be backed by a distributed backend (e.g.
-// PostgreSQL + Redis + WebSockets) capable of supporting 50,000 admins
-// and 100,000 cashiers simultaneously. The BroadcastChannel API used here
-// provides real-time sync across tabs on the same browser. In production,
-// a WebSocket server would replace this for cross-device real-time updates.
-// Data is partitioned by businessId at the query level so each business
-// only loads and processes its own records - ensuring O(n/businesses)
-// complexity per tenant rather than O(n) over all data.
-// ============================================================
-// FIX 21: Inject a Content-Security-Policy meta tag at runtime so every page
-// that loads shared.js gets baseline XSS protection.
-// This allowlists the exact external origins the app uses:
-//   - Google Fonts (preconnect + stylesheet + font files)
-//   - Paystack inline JS
-//   - cdnjs (SheetJS / XLSX)
-// 'unsafe-inline' is required for the inline <script> route guards in each HTML
-// file; remove it if those are ever converted to external scripts.
+// localStorage-backed multi-tenant POS. BroadcastChannel gives
+// real-time cross-tab sync. RENEWAL_WINDOW_DAYS is the single
+// source of truth for the renewal window (issue #1 fix).
+
 (function injectCSP() {
   if (document.querySelector('meta[http-equiv="Content-Security-Policy"]'))
     return;
@@ -33,7 +19,6 @@
   meta.content = [
     "default-src 'self'",
     "script-src 'self' 'unsafe-inline' https://js.paystack.co https://cdnjs.cloudflare.com",
-    // Paystack loads button.min.css from paystack.com at runtime
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://paystack.com",
     "font-src 'self' https://fonts.gstatic.com",
     "connect-src 'self' https://api.paystack.co https://checkout.paystack.com https://paystack.com",
@@ -44,16 +29,18 @@
 })();
 
 // ============================================================
-// ROLE CONSTANTS (FIX 17)
+// CONSTANTS
 // ============================================================
-// Centralised role strings - use these instead of bare magic strings.
 const ROLES = Object.freeze({
   SUPER_ADMIN: "super-admin",
   ADMIN: "admin",
   CASHIER: "cashier",
 });
-
 const STORAGE_KEY = "salestation_v6";
+// Single source of truth for the renewal window. Used in renderSubscriptions
+// and handleUpgrade/handleRenew to gate access consistently. (Fixes issue #1/#12)
+const RENEWAL_WINDOW_DAYS = 2;
+const PAYSTACK_PUBLIC_KEY = "pk_test_328d06e1e7acac75cab1175db7c135a8f1697132";
 
 const PLAN_LIMITS = {
   trial: {
@@ -68,6 +55,7 @@ const PLAN_LIMITS = {
       "Max 1 Cashier",
       "Max 15 Items",
       "Full POS Checkout",
+      "Transaction Receipts",
       "Contact Support",
       "No statement downloads",
       "No grace period",
@@ -129,13 +117,11 @@ const initialData = {
   transactions: [],
   messages: [],
   subscriptions: [],
-  locations: [], // {id, businessId, name, address}
-  auditLogs: [], // {id, businessId, userId, userName, action, target, ts}
+  locations: [],
+  auditLogs: [],
   currentUser: null,
 };
 
-// SS-023: In-memory store cache - avoids redundant JSON.parse on every getStore() call.
-// The cache is invalidated (set to null) whenever updateStore() or saveStore() writes.
 let _storeCache = null;
 
 function getStore() {
@@ -149,22 +135,17 @@ function getStore() {
       return init;
     }
     const s = JSON.parse(d);
-    // Migrate: ensure new top-level arrays exist
     if (!s.locations) s.locations = [];
     if (!s.auditLogs) s.auditLogs = [];
-    // Migrate: items get stock: null if missing
     if (s.items) s.items = s.items.map((i) => ({ stock: null, ...i }));
-    // Migrate: transactions get receiptId if missing
     if (s.transactions)
       s.transactions = s.transactions.map((t) =>
         t.receiptId ? t : { ...t, receiptId: null }
       );
-    // Migrate: businesses get businessType if missing
     if (s.businesses)
       s.businesses = s.businesses.map((b) =>
         b.businessType ? b : { ...b, businessType: "other" }
       );
-    // Migrate: subscriptions get startedAt if missing
     if (s.subscriptions)
       s.subscriptions = s.subscriptions.map((sub) =>
         sub.startedAt
@@ -187,14 +168,14 @@ function getStore() {
 }
 
 function saveStore(data) {
-  _storeCache = data; // update cache in-place
+  _storeCache = data;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
 
 function updateStore(fn) {
   const current = getStore();
   const next = fn(current);
-  _storeCache = null; // invalidate before save so getStore re-reads cleanly if needed
+  _storeCache = null;
   saveStore(next);
   broadcastChange(next);
   return next;
@@ -205,7 +186,6 @@ function updateStore(fn) {
 // ============================================================
 function addAuditLog(action, target) {
   if (!currentUser) return;
-  // Fix 4: Super admin has no businessId - use a sentinel value so logs are always recorded
   const bizId = currentUser.businessId || "super-admin";
   updateStore((d) => ({
     ...d,
@@ -226,23 +206,20 @@ function addAuditLog(action, target) {
 }
 
 // ============================================================
-// SUBSCRIPTION STATUS HELPERS
+// SUBSCRIPTION STATUS
 // ============================================================
 function getSubStatus(businessId) {
   const store = getStore();
   const sub = store.subscriptions.find((s) => s.businessId === businessId);
   const biz = store.businesses.find((b) => b.id === businessId);
   if (!sub || !biz) return null;
-
   const now = new Date();
   const expires = new Date(sub.expiresAt);
   const grace = PLAN_LIMITS[biz.plan]?.graceDays || 0;
   const graceEnd = new Date(expires.getTime() + grace * 24 * 60 * 60 * 1000);
   const daysLeft = Math.ceil((expires - now) / (1000 * 60 * 60 * 24));
   const graceLeft = Math.ceil((graceEnd - now) / (1000 * 60 * 60 * 24));
-
   if (sub.status === "cancelled") {
-    // Cancelled: still active until expiry date (no grace period)
     if (now <= expires)
       return {
         status: "cancelled",
@@ -253,7 +230,6 @@ function getSubStatus(businessId) {
         daysLeft,
         expiresAt: sub.expiresAt,
       };
-    // Past expiry - fully expired, access denied
     return {
       status: "cancelled-expired",
       label: "Expired",
@@ -292,16 +268,11 @@ function getSubStatus(businessId) {
 
 function enforceSubscription(businessId) {
   const st = getSubStatus(businessId);
-  // SS-018: A subscription can be cancelled but still technically "active" until its
-  // expiry date. However once expired, status === 'cancelled-expired' and active === false.
   const store = getStore();
   const sub = store.subscriptions.find((s) => s.businessId === businessId);
   const isCancelledPastExpiry =
     sub && sub.status === "cancelled" && new Date() > new Date(sub.expiresAt);
-  // FIX 9: A null getSubStatus means there is no subscription record at all -
-  // treat as inactive rather than silently granting access.
   if (!st || !st.active || isCancelledPastExpiry) {
-    // Auto-disable business
     updateStore((d) => ({
       ...d,
       businesses: d.businesses.map((b) =>
@@ -319,9 +290,9 @@ function applyScheduledUpgrades() {
   const freshStore = getStore();
   const newSubscriptions = freshStore.subscriptions.map((sub) => {
     if (sub.nextPlan && new Date(sub.expiresAt) <= now) {
+      changed = true;
       const plan = sub.nextPlan;
       const dur = PLAN_LIMITS[plan]?.durationDays || 30;
-      changed = true;
       return {
         ...sub,
         plan,
@@ -332,23 +303,288 @@ function applyScheduledUpgrades() {
     }
     return sub;
   });
+  // Use freshStore snapshot for nextPlan check so we read pre-mutation values
   const newBusinesses = freshStore.businesses.map((b) => {
     const sub = freshStore.subscriptions.find((s) => s.businessId === b.id);
-    if (sub && sub.nextPlan && new Date(sub.expiresAt) <= now) {
+    if (sub && sub.nextPlan && new Date(sub.expiresAt) <= now)
       return { ...b, plan: sub.nextPlan };
-    }
     return b;
   });
-  // FIX 8: Use updateStore (not saveStore) so broadcastChange() fires and other
-  // tabs are notified when a scheduled plan upgrade takes effect.
-  if (changed) {
+  if (changed)
     updateStore((d) => ({
       ...d,
       subscriptions: newSubscriptions,
       businesses: newBusinesses,
     }));
-  }
 }
+
+// ============================================================
+// PAYMENT / SUBSCRIPTION COMPLETION
+// All Paystack and plan-change functions live here so they are
+// available to admin.html, cashier.html, and auth.html alike.
+// (Fixes issues #3-#7: ReferenceErrors from missing functions)
+// ============================================================
+
+// Module-level state for plan selectors
+let _renewSelectedPlan = "starter";
+let _loginSubSelectedPlan = "starter";
+let completeRenewOverride = null;
+let _pendingLoginRenewal = null;
+let _pendingPaystackConfirm = null;
+let _pendingRenew = null;
+
+function _handlePaystackConfirm() {
+  if (typeof _pendingPaystackConfirm === "function") _pendingPaystackConfirm();
+}
+function _handleLoginSubContinue() {
+  if (typeof _pendingLoginRenewal === "function") _pendingLoginRenewal();
+}
+function _handleRenewContinue() {
+  if (typeof _pendingRenew === "function") _pendingRenew();
+}
+
+function selectLoginPlan(plan) {
+  _loginSubSelectedPlan = plan;
+  ["starter", "premium"].forEach((p) => {
+    const el = document.getElementById("login-sub-" + p);
+    if (el) el.classList.toggle("selected", p === plan);
+  });
+}
+
+function selectRenewPlan(plan) {
+  _renewSelectedPlan = plan;
+  ["starter", "premium"].forEach((p) => {
+    const el = document.getElementById("renew-plan-" + p);
+    if (el) el.classList.toggle("selected", p === plan);
+  });
+}
+
+function simulatePaystack(
+  bizName,
+  ownerName,
+  email,
+  password,
+  plan,
+  isUpgrade,
+  onSuccess,
+  isRenew
+) {
+  const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.starter;
+  const price = limits.price;
+
+  if (isRenew && plan === "trial") {
+    toast("Trial plan cannot be renewed. Please choose a paid plan.", "error");
+    return;
+  }
+
+  if (price === 0) {
+    openModal(
+      `${Icon.paystack} Activate Trial`,
+      `<div style="text-align:center;padding:16px 0">
+        <div style="font-size:28px;font-weight:900;font-family:var(--font-mono);margin-bottom:8px">Free Trial</div>
+        <div style="font-size:13px;color:var(--gray-500);margin-bottom:20px">Plan: <strong>${limits.label}</strong> — No payment required.</div>
+        <div style="background:var(--gray-50);border:1px solid var(--gray-100);border-radius:var(--radius);padding:12px;margin-bottom:20px;text-align:left;font-size:12px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--gray-500)">Amount</span><strong>R0.00 (Free)</strong></div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--gray-500)">Plan</span><strong>${limits.label}</strong></div>
+          <div style="display:flex;justify-content:space-between"><span style="color:var(--gray-500)">Duration</span><strong>${limits.durationDays} days</strong></div>
+        </div>
+        <div style="display:flex;gap:10px">
+          <button class="btn btn-outline btn-lg" style="flex:1" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-primary btn-lg" style="flex:2" onclick="_handlePaystackConfirm()">${Icon.checkCircle} Activate Trial</button>
+        </div>
+      </div>`
+    );
+    _pendingPaystackConfirm = () => {
+      _pendingPaystackConfirm = null;
+      closeModal();
+      if (isRenew) completeRenew(plan);
+      else if (isUpgrade) completeUpgrade(plan);
+      else completeRegistration(bizName, ownerName, email, password, plan);
+    };
+    return;
+  }
+
+  const zarPrice =
+    "R" +
+    Number(price).toLocaleString("en-ZA", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  let localCurrencyNote = "";
+  if (currentUser && currentUser.businessId) {
+    const _biz = getStore().businesses.find(
+      (b) => b.id === currentUser.businessId
+    );
+    if (_biz && _biz.currency && _biz.currency !== "ZAR") {
+      localCurrencyNote = `<div style="background:var(--blue-bg);border:1px solid #c0d1f5;border-radius:var(--radius);padding:10px 12px;margin-bottom:16px;font-size:12px;color:var(--blue);text-align:left"><strong>International Payment Note:</strong> This subscription is billed in ZAR. Your bank will convert <strong>${zarPrice}</strong> to ${_biz.currency} at the prevailing exchange rate.</div>`;
+    }
+  } else {
+    const regCurrEl = document.getElementById("reg-currency");
+    if (regCurrEl) {
+      const parts = regCurrEl.value.split("|");
+      if (parts[0] && parts[0] !== "ZAR") {
+        localCurrencyNote = `<div style="background:var(--blue-bg);border:1px solid #c0d1f5;border-radius:var(--radius);padding:10px 12px;margin-bottom:16px;font-size:12px;color:var(--blue);text-align:left"><strong>International Payment Note:</strong> All SaleStation subscriptions are billed in ZAR. Your bank will convert <strong>${zarPrice}</strong> to ${parts[0]} at the prevailing exchange rate.</div>`;
+      }
+    }
+  }
+
+  openModal(
+    `${Icon.paystack} Confirm Subscription`,
+    `<div style="text-align:center;padding:16px 0">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--gray-400);font-family:var(--font-mono);margin-bottom:8px">Payment (billed in ZAR)</div>
+      <div style="font-size:28px;font-weight:900;font-family:var(--font-mono);margin-bottom:4px">${zarPrice}</div>
+      <div style="font-size:13px;color:var(--gray-500);margin-bottom:4px">Plan: <strong>${limits.label}</strong></div>
+      <div style="font-size:12px;color:var(--gray-400);margin-bottom:16px">Click "Pay Now" to securely complete payment.</div>
+      ${localCurrencyNote}
+      <div style="background:var(--gray-50);border:1px solid var(--gray-100);border-radius:var(--radius);padding:12px;margin-bottom:20px;text-align:left;font-size:12px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--gray-500)">Amount (ZAR)</span><strong>${zarPrice}</strong></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--gray-500)">Plan</span><strong>${limits.label}</strong></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:var(--gray-500)">Duration</span><strong>${limits.durationDays} days</strong></div>
+      </div>
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-outline btn-lg" style="flex:1" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary btn-lg" style="flex:2" onclick="_handlePaystackConfirm()">${Icon.paystack} Pay Now</button>
+      </div>
+    </div>`
+  );
+
+  _pendingPaystackConfirm = () => {
+    _pendingPaystackConfirm = null;
+    const handler = PaystackPop.setup({
+      key: PAYSTACK_PUBLIC_KEY,
+      email:
+        email ||
+        (currentUser &&
+          (getStore().businesses.find((b) => b.id === currentUser.businessId)
+            ?.email ||
+            currentUser.email)) ||
+        "",
+      amount: price * 100,
+      currency: "ZAR",
+      ref: "SS-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7),
+      metadata: {
+        custom_fields: [
+          { display_name: "Plan", variable_name: "plan", value: limits.label },
+          {
+            display_name: "Business",
+            variable_name: "business",
+            value: bizName || "",
+          },
+        ],
+      },
+      onClose: function () {
+        toast("Payment cancelled.", "error");
+      },
+      callback: function () {
+        closeModal();
+        toast("Payment successful! Setting up your account...", "success");
+        if (isRenew) completeRenew(plan);
+        else if (isUpgrade) completeUpgrade(plan);
+        else completeRegistration(bizName, ownerName, email, password, plan);
+      },
+    });
+    handler.openIframe();
+  };
+}
+
+function showLoginSubscriptionModal(user, biz) {
+  const featureList = (plan) =>
+    (PLAN_LIMITS[plan]?.features || []).map((f) => `<li>${f}</li>`).join("");
+  const zarStarterPrice =
+    "R" +
+    Number(PLAN_LIMITS.starter.price).toLocaleString("en-ZA", {
+      minimumFractionDigits: 2,
+    });
+  const zarPremiumPrice =
+    "R" +
+    Number(PLAN_LIMITS.premium.price).toLocaleString("en-ZA", {
+      minimumFractionDigits: 2,
+    });
+  openModal(
+    "Subscription Required",
+    `
+    <div style="text-align:center;margin-bottom:20px">
+      <div style="width:44px;height:44px;background:var(--red-bg);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 12px">
+        <svg width="20" height="20" fill="none" stroke="var(--red)" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      </div>
+      <div style="font-size:15px;font-weight:700;font-family:var(--font-mono);margin-bottom:4px">Subscription Expired</div>
+      <div style="font-size:13px;color:var(--gray-500)">Choose a plan to reactivate <strong>${sanitize(
+        biz.name
+      )}</strong> and continue.</div>
+    </div>
+    <div id="login-sub-starter" class="plan-card selected" onclick="selectLoginPlan('starter')" style="cursor:pointer">
+      <div class="plan-card-header"><span class="plan-name">Starter</span><span class="plan-price">${zarStarterPrice}<span>/mo</span></span></div>
+      <div style="font-size:10px;color:var(--gray-500);margin-bottom:8px;font-family:var(--font-mono)">Billed in ZAR</div>
+      <ul class="plan-features">${featureList("starter")}</ul>
+    </div>
+    <div id="login-sub-premium" class="plan-card" onclick="selectLoginPlan('premium')" style="cursor:pointer">
+      <div class="plan-card-header"><span class="plan-name">Premium <span class="plan-badge-tag popular-badge">Popular</span></span><span class="plan-price">${zarPremiumPrice}<span>/mo</span></span></div>
+      <div style="font-size:10px;color:var(--blue);margin-bottom:8px;font-family:var(--font-mono)">Billed in ZAR</div>
+      <ul class="plan-features">${featureList("premium")}</ul>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button class="btn btn-outline btn-lg" style="flex:1" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary btn-lg" style="flex:2" onclick="_handleLoginSubContinue()">${
+        Icon.paystack
+      } Continue to Payment</button>
+    </div>
+    <p style="font-size:11px;color:var(--gray-400);text-align:center;margin-top:10px">Cancelling returns you to the login screen. Your account remains locked until a plan is active.</p>
+  `
+  );
+  _loginSubSelectedPlan = "starter";
+  selectLoginPlan("starter");
+  _pendingLoginRenewal = function () {
+    const plan = _loginSubSelectedPlan || "starter";
+    _pendingLoginRenewal = null;
+    closeModal();
+    // For login renewals, always start fresh — never carry expired remaining time.
+    completeRenewOverride = function (renewedPlan) {
+      completeRenewOverride = null;
+      const dur = PLAN_LIMITS[renewedPlan]?.durationDays || 30;
+      const newExpiry = new Date(Date.now() + dur * 86400000).toISOString();
+      updateStore((d) => ({
+        ...d,
+        businesses: d.businesses.map((b) =>
+          b.id === biz.id ? { ...b, status: "active", plan: renewedPlan } : b
+        ),
+        subscriptions: d.subscriptions.map((s) =>
+          s.businessId === biz.id
+            ? {
+                ...s,
+                plan: renewedPlan,
+                status: "active",
+                expiresAt: newExpiry,
+                nextPlan: null,
+              }
+            : s
+        ),
+      }));
+      const freshUser = getStore().users.find((u) => u.id === user.id);
+      currentUser = freshUser || user;
+      updateStore((d) => ({ ...d, currentUser }));
+      const emailEl = document.getElementById("login-email");
+      const passEl = document.getElementById("login-password");
+      if (emailEl) emailEl.value = "";
+      if (passEl) passEl.value = "";
+      toast("Subscription renewed! Welcome back.", "success");
+      redirectToRolePage();
+    };
+    simulatePaystack(
+      biz.name,
+      user.name,
+      biz.email || user.email,
+      "",
+      plan,
+      false,
+      null,
+      true
+    );
+  };
+}
+
+// completeRegistration is defined in auth.js (auth.html only).
+// completeRenew and completeUpgrade are defined in admin.js but shared.js
+// provides the stubs so cashier.html can also call completeRenew if needed.
 
 // ============================================================
 // WEBSOCKET SIMULATION (BroadcastChannel)
@@ -359,19 +595,15 @@ let wsSimInterval = null;
 function initWebSocketSimulation() {
   try {
     channel = new BroadcastChannel("salestation_realtime");
-    channel.onmessage = (event) => {
-      handleRemoteUpdate(event.data);
-    };
+    channel.onmessage = (event) => handleRemoteUpdate(event.data);
   } catch (e) {
     startPolling();
   }
-  // Always run expiry check even when BroadcastChannel is used
   wsSimInterval =
     wsSimInterval ||
     setInterval(() => {
       if (currentUser && currentUser.businessId) {
         checkCancelledSubscriptionExpiry(currentUser.businessId);
-        // Periodic sub enforcement - catches expired subs even if user never leaves POS
         if (currentUser.role !== "super-admin") {
           const st = getSubStatus(currentUser.businessId);
           if (st && !st.active) {
@@ -411,10 +643,7 @@ function broadcastChange(newStore) {
 }
 
 function handleRemoteUpdate(data) {
-  // Re-read currentUser from store to avoid stale closure value
   const freshCurrentUserId = currentUser?.id || getStore().currentUser?.id;
-
-  // Sidebar collapse sync across tabs
   if (
     data.type === "SIDEBAR_COLLAPSE" &&
     data.from === currentUser?.id &&
@@ -424,25 +653,19 @@ function handleRemoteUpdate(data) {
     if (sb) sb.classList.toggle("collapsed", !!data.collapsed);
     return;
   }
-
   if (data.type === "STORE_UPDATE" && data.from !== freshCurrentUserId) {
     const elapsed = Date.now() - data.ts;
     if (elapsed < 1800) {
-      // tight 1.8s window for guaranteed <2s UX
-      _storeCache = null; // SS-023: invalidate cache before writing new store
+      _storeCache = null;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data.store));
       if (activeTab && currentUser) {
         if (activeTab === "dashboard") {
-          // FIX 3: updateDashboardChart only exists on admin.js; guard before calling.
           if (typeof updateDashboardChart === "function")
             updateDashboardChart();
-        } else if (activeTab !== "pos") {
-          renderContent(activeTab);
-        } else {
-          // FIX 4: refreshPOSItemsOnly only exists on admin.js/cashier.js; guard before calling.
+        } else if (activeTab !== "pos") renderContent(activeTab);
+        else {
           if (typeof refreshPOSItemsOnly === "function") refreshPOSItemsOnly();
         }
-        // Check if current user was suspended/business deactivated
         const store = getStore();
         const freshUser = store.users.find((u) => u.id === currentUser.id);
         if (
@@ -473,18 +696,12 @@ function handleRemoteUpdate(data) {
   }
 }
 
-// ============================================================
-// CANCELLED SUBSCRIPTION EXPIRY ENFORCEMENT
-// ============================================================
 function checkCancelledSubscriptionExpiry(businessId) {
   if (!currentUser || currentUser.role === "super-admin") return;
   const store = getStore();
   const sub = store.subscriptions.find((s) => s.businessId === businessId);
   if (!sub || sub.status !== "cancelled") return;
-  const now = new Date();
-  const expires = new Date(sub.expiresAt);
-  if (now > expires) {
-    // Deactivate the business and force logout everyone
+  if (new Date() > new Date(sub.expiresAt)) {
     updateStore((d) => ({
       ...d,
       businesses: d.businesses.map((b) =>
@@ -497,57 +714,41 @@ function checkCancelledSubscriptionExpiry(businessId) {
 
 function startPolling() {
   let lastSeen = localStorage.getItem(STORAGE_KEY);
-  // SS-024: Pause polling on background tabs to save CPU/battery; resume on visibility restore.
   let _pollInterval = null;
-
   function runPoll() {
     const current = localStorage.getItem(STORAGE_KEY);
     if (current !== lastSeen) {
       lastSeen = current;
-      _storeCache = null; // invalidate cache so next getStore() re-reads
+      _storeCache = null;
       if (activeTab && currentUser) {
         if (activeTab === "dashboard") {
-          // FIX 3: guard - only defined on admin.js
           if (typeof updateDashboardChart === "function")
             updateDashboardChart();
-        } else if (activeTab !== "pos") {
-          renderContent(activeTab);
-        } else {
-          // FIX 4: guard - only defined on admin.js / cashier.js
+        } else if (activeTab !== "pos") renderContent(activeTab);
+        else {
           if (typeof refreshPOSItemsOnly === "function") refreshPOSItemsOnly();
         }
       }
     }
-    if (currentUser && currentUser.businessId) {
+    if (currentUser && currentUser.businessId)
       checkCancelledSubscriptionExpiry(currentUser.businessId);
-    }
   }
-
   function startInterval() {
     if (_pollInterval) return;
-    lastSeen = localStorage.getItem(STORAGE_KEY); // re-sync on resume
-    _pollInterval = setInterval(runPoll, 1500); // 1.5s poll: balanced update propagation vs CPU
+    lastSeen = localStorage.getItem(STORAGE_KEY);
+    _pollInterval = setInterval(runPoll, 1500);
   }
-
   function stopInterval() {
     if (_pollInterval) {
       clearInterval(_pollInterval);
       _pollInterval = null;
     }
   }
-
-  // Start immediately if tab is visible
   if (!document.hidden) startInterval();
-
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden) {
-      stopInterval();
-    } else {
-      startInterval();
-    }
-  });
-
-  wsSimInterval = { clear: stopInterval }; // expose a clear handle for performLogout
+  document.addEventListener("visibilitychange", () =>
+    document.hidden ? stopInterval() : startInterval()
+  );
+  wsSimInterval = { clear: stopInterval };
 }
 
 // ============================================================
@@ -561,23 +762,17 @@ function resetSessionTimer() {
   clearTimeout(sessionTimer);
   clearTimeout(sessionWarnTimer);
   clearInterval(sessionCountdownInterval);
-  // FIX 1 & 20: #session-warning only exists on app pages, not auth.html.
-  // Always guard the element reference with a null check, and bail out
-  // immediately when no user is logged in (prevents crash on auth page).
   const sw = document.getElementById("session-warning");
   if (sw) sw.classList.remove("show");
   if (!currentUser) return;
-  // Guard: only run session timer when logged in to an app page
-  // SS-010: Skip timeout entirely for "remembered" sessions
   if (currentUser._rememberMe) return;
-  // Warn at 28 min - show countdown for the final 2 minutes
   sessionWarnTimer = setTimeout(() => {
-    document.getElementById("session-warning").classList.add("show");
-    // Start countdown from 2:00
+    const swEl = document.getElementById("session-warning");
+    if (swEl) swEl.classList.add("show");
     let secsLeft = 120;
     function updateCountdown() {
-      const m = Math.floor(secsLeft / 60);
-      const s = secsLeft % 60;
+      const m = Math.floor(secsLeft / 60),
+        s = secsLeft % 60;
       const el = document.getElementById("session-countdown");
       if (el) el.textContent = `${m}:${String(s).padStart(2, "0")}`;
       secsLeft--;
@@ -591,7 +786,6 @@ function resetSessionTimer() {
       updateCountdown();
     }, 1000);
   }, 28 * 60 * 1000);
-  // Logout at 30 min
   sessionTimer = setTimeout(() => {
     clearInterval(sessionCountdownInterval);
     forceLogout("Session expired. Logging out.");
@@ -600,9 +794,6 @@ function resetSessionTimer() {
 
 let _lastSessionReset = 0;
 function debouncedResetSession() {
-  // FIX 20: No-op when no user is logged in (auth page context).
-  // The event listeners are registered unconditionally on every page that loads
-  // shared.js, so we must guard here rather than at the listener level.
   if (!currentUser) return;
   const now = Date.now();
   if (now - _lastSessionReset > 10000) {
@@ -610,16 +801,12 @@ function debouncedResetSession() {
     resetSessionTimer();
   }
 }
-// All activity events use the same debounced handler to avoid per-event jank
-["mousemove", "keydown", "click", "touchstart"].forEach((e) => {
-  document.addEventListener(e, debouncedResetSession, { passive: true });
-});
+["mousemove", "keydown", "click", "touchstart"].forEach((e) =>
+  document.addEventListener(e, debouncedResetSession, { passive: true })
+);
 
 // ============================================================
 // UTILITIES
-// ============================================================
-// ============================================================
-// LOADING STATE HELPERS
 // ============================================================
 function sanitize(str) {
   return String(str).replace(
@@ -630,8 +817,6 @@ function sanitize(str) {
       ])
   );
 }
-// Safely encode a value for use inside a data-* attribute (HTML-attribute safe).
-// Prefer data-* attributes over inline onclick strings whenever possible.
 function safeAttr(str) {
   return String(str)
     .replace(/&/g, "&amp;")
@@ -640,12 +825,12 @@ function safeAttr(str) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 }
-
 function getCurrencySymbol() {
   if (!currentUser || !currentUser.businessId) return "R";
   try {
-    const store = getStore();
-    const biz = store.businesses.find((b) => b.id === currentUser.businessId);
+    const biz = getStore().businesses.find(
+      (b) => b.id === currentUser.businessId
+    );
     return biz?.currencySymbol || "R";
   } catch (e) {
     return "R";
@@ -679,27 +864,15 @@ function formatDateShort(iso) {
     year: "numeric",
   });
 }
-// FIX 11: Use crypto.randomUUID() for collision-free IDs.
-// The old Date.now() + Math.random() approach could collide under rapid successive
-// calls within the same millisecond. randomUUID() is RFC 4122 compliant and
-// available in all modern browsers (Chrome 92+, Firefox 95+, Safari 15.4+).
 function uid() {
-  if (
-    typeof crypto !== "undefined" &&
-    typeof crypto.randomUUID === "function"
-  ) {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function")
     return crypto.randomUUID();
-  }
-  // Fallback for very old environments: keep prior approach but extend randomness
   return `${Date.now()}-${Math.random()
     .toString(36)
     .slice(2, 9)}-${Math.random().toString(36).slice(2, 9)}`;
 }
-
 function toast(msg, type = "default") {
   const c = document.getElementById("toast-container");
-  // FIX 2: Guard against missing container (defensive - every app page includes it,
-  // but guard prevents a crash if called before DOM is ready or on a partial page).
   if (!c) return;
   const t = document.createElement("div");
   t.className = `toast ${
@@ -712,7 +885,6 @@ function toast(msg, type = "default") {
       : ""
   }`;
   t.textContent = msg;
-  // SS-013: Announce to screen readers via appropriate live region
   if (type === "error") {
     const assertive = document.getElementById("toast-container-assertive");
     if (assertive) {
@@ -725,9 +897,7 @@ function toast(msg, type = "default") {
   c.appendChild(t);
   setTimeout(() => t.remove(), 3200);
 }
-
 function confirm2(title, msg, options) {
-  // Fix 19: Support custom ok button label and style (e.g. neutral logout vs danger delete)
   return new Promise((resolve) => {
     document.getElementById("confirm-title").textContent = title;
     document.getElementById("confirm-message").textContent = msg;
@@ -735,23 +905,17 @@ function confirm2(title, msg, options) {
     overlay.classList.add("open");
     const okBtn = document.getElementById("confirm-ok-btn");
     const cancelBtn = document.getElementById("confirm-cancel-btn");
-    // Apply custom label/class if provided
-    okBtn.textContent =
-      options && options.okLabel ? options.okLabel : "Confirm";
-    okBtn.className =
-      "btn " + (options && options.okClass ? options.okClass : "btn-danger");
+    okBtn.textContent = options?.okLabel || "Confirm";
+    okBtn.className = "btn " + (options?.okClass || "btn-danger");
     okBtn.style.flex = "1";
     const cleanup = () => {
       overlay.classList.remove("open");
       okBtn.onclick = null;
       cancelBtn.onclick = null;
-      // FIX 6: Remove Escape key listener on cleanup
       document.removeEventListener("keydown", escHandler);
-      // Reset to defaults
       okBtn.textContent = "Confirm";
       okBtn.className = "btn btn-danger";
     };
-    // FIX 6: Allow dismissing the confirm dialog with the Escape key (accessibility)
     function escHandler(e) {
       if (e.key === "Escape") {
         cleanup();
@@ -769,18 +933,10 @@ function confirm2(title, msg, options) {
     };
   });
 }
-
-function togglePw(inputId, btn) {
+function togglePw(inputId) {
   const inp = document.getElementById(inputId);
   if (!inp) return;
   inp.type = inp.type === "password" ? "text" : "password";
-}
-
-function showPage(id) {
-  document
-    .querySelectorAll("#auth-container > div")
-    .forEach((el) => el.classList.add("hidden"));
-  document.getElementById(id).classList.remove("hidden");
 }
 
 // ============================================================
@@ -807,7 +963,6 @@ const Icon = {
   location: `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>`,
   log: `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>`,
   paystack: `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>`,
-  read: `<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`,
   receipt: `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16l3-2 3 2 3-2 3 2V4a2 2 0 0 0-2-2z"/><line x1="9" y1="7" x2="15" y2="7"/><line x1="9" y1="11" x2="15" y2="11"/><line x1="9" y1="15" x2="12" y2="15"/></svg>`,
 };
 
@@ -815,8 +970,6 @@ const Icon = {
 // AUTH STATE
 // ============================================================
 let currentUser = null;
-// FIX 18: selectedPlan was previously declared here, leaking into all pages.
-// It is only used by auth.js and is declared there instead.
 let activeTab = "";
 
 // ============================================================
@@ -824,11 +977,7 @@ let activeTab = "";
 // ============================================================
 function launchApp() {
   applyScheduledUpgrades();
-  // FIX 12: Prevent flash of empty/unstyled content during the synchronous
-  // route-guard + render phase. Body starts invisible (set in each role HTML)
-  // and is revealed here once the first render is complete.
   document.body.style.visibility = "visible";
-  // auth-container only exists on auth.html; on role pages the app is always visible
   const authEl = document.getElementById("auth-container");
   if (authEl) authEl.classList.add("hidden");
   const appEl = document.getElementById("app-container");
@@ -842,7 +991,6 @@ function launchApp() {
   const defaultTab = currentUser.role === "cashier" ? "pos" : "dashboard";
   navigate(defaultTab);
   initWebSocketSimulation();
-  // Restore sidebar collapse state (per user)
   if (window.innerWidth > 768) {
     const collapsed =
       localStorage.getItem(`sidebar_collapsed_${currentUser.id}`) === "true";
@@ -889,7 +1037,6 @@ const NAV_ITEMS = {
     { id: "subscriptions", label: "Subscription", icon: "credit" },
     { id: "contact", label: "Contact Support", icon: "mail" },
     { id: "settings", label: "Settings", icon: "settings" },
-    // Premium only – added conditionally
   ],
   cashier: [
     { id: "pos", label: "POS", icon: "cart" },
@@ -907,11 +1054,10 @@ function buildSidebar() {
     currentUser.role === "super-admin"
       ? getStore().messages.filter((m) => !m.read).length
       : 0;
-
-  // Add premium items conditionally
   if (currentUser.role === "admin") {
-    const store = getStore();
-    const biz = store.businesses.find((b) => b.id === currentUser.businessId);
+    const biz = getStore().businesses.find(
+      (b) => b.id === currentUser.businessId
+    );
     if (biz?.plan === "premium") {
       const subIdx = items.findIndex((i) => i.id === "subscriptions");
       items.splice(
@@ -922,8 +1068,6 @@ function buildSidebar() {
       );
     }
   }
-
-  // Fix 16: Determine if subscription expiry badge should show
   let subBadgeHTML = "";
   if (currentUser.businessId) {
     const st = getSubStatus(currentUser.businessId);
@@ -937,56 +1081,57 @@ function buildSidebar() {
         : st.daysLeft <= 3
         ? "var(--red)"
         : "var(--accent)";
-      const badgeLabel = st.inGrace ? "Grace" : `${st.daysLeft}d`;
-      subBadgeHTML = `<span style="margin-left:auto;background:${badgeColor};color:white;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;font-family:var(--font-mono)">${badgeLabel}</span>`;
+      subBadgeHTML = `<span style="margin-left:auto;background:${badgeColor};color:white;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;font-family:var(--font-mono)">${
+        st.inGrace ? "Grace" : `${st.daysLeft}d`
+      }</span>`;
     } else if (st && !st.active) {
       subBadgeHTML = `<span style="margin-left:auto;background:var(--red);color:white;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;font-family:var(--font-mono)">!</span>`;
     }
   }
-
   const mainItems = items.filter(
-    (i) => i.id !== "contact" && i.id !== "settings" && i.id !== "subscriptions"
+    (i) => !["contact", "settings", "subscriptions"].includes(i.id)
   );
   const bottomItems = items.filter((i) =>
     ["contact", "settings", "subscriptions"].includes(i.id)
   );
-
   nav.innerHTML = `
-      <div class="nav-section-label">Main</div>
-      ${mainItems
-        .map(
-          (item) => `
-        <div class="nav-item" data-tab="${safeAttr(
-          item.id
-        )}" onclick="navigate('${safeAttr(item.id)}')">
-  ${Icon[item.icon] || Icon.dashboard}
-  <span class="nav-item-label">${item.label}</span>
-  ${
-    item.id === "messages" && unreadMsgCount > 0
-      ? `<span style="margin-left:auto;background:var(--red);color:white;font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px;font-family:var(--font-mono);min-width:18px;text-align:center">${
-          unreadMsgCount > 99 ? "99+" : unreadMsgCount
-        }</span>`
-      : ""
-  }
-        </div>
-      `
-        )
-        .join("")}
-      <div class="nav-section-label" style="margin-top:8px">Account</div>
-      ${bottomItems
-        .map(
-          (item) => `
-        <div class="nav-item" data-tab="${safeAttr(
-          item.id
-        )}" onclick="navigate('${safeAttr(item.id)}')">
-  ${Icon[item.icon] || Icon.settings}
-  <span class="nav-item-label">${item.label}</span>
-  ${item.id === "subscriptions" ? subBadgeHTML : ""}
-        </div>
-      `
-        )
-        .join("")}
-    `;
+    <div class="nav-section-label">Main</div>
+    ${mainItems
+      .map(
+        (item) => `
+      <div class="nav-item" data-tab="${safeAttr(
+        item.id
+      )}" onclick="navigate('${safeAttr(item.id)}')">
+        ${Icon[item.icon] || Icon.dashboard}
+        <span class="nav-item-label">${item.label}</span>
+        ${
+          item.id === "messages" && unreadMsgCount > 0
+            ? `<span style="margin-left:auto;background:var(--red);color:white;font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px;font-family:var(--font-mono);min-width:18px;text-align:center">${
+                unreadMsgCount > 99 ? "99+" : unreadMsgCount
+              }</span>`
+            : ""
+        }
+      </div>`
+      )
+      .join("")}
+    ${
+      bottomItems.length > 0
+        ? `<div class="nav-section-label" style="margin-top:8px">Account</div>`
+        : ""
+    }
+    ${bottomItems
+      .map(
+        (item) => `
+      <div class="nav-item" data-tab="${safeAttr(
+        item.id
+      )}" onclick="navigate('${safeAttr(item.id)}')">
+        ${Icon[item.icon] || Icon.settings}
+        <span class="nav-item-label">${item.label}</span>
+        ${item.id === "subscriptions" ? subBadgeHTML : ""}
+      </div>`
+      )
+      .join("")}
+  `;
 }
 
 function handleHamburger() {
@@ -1002,7 +1147,6 @@ function handleHamburger() {
     try {
       localStorage.setItem(`sidebar_collapsed_${currentUser.id}`, isCollapsed);
     } catch (e) {}
-    // Notify other tabs so their sidebar collapses in sync
     if (channel) {
       try {
         channel.postMessage({
@@ -1027,7 +1171,6 @@ function closeMobileSidebar() {
 }
 
 function navigate(tab) {
-  // Warn if leaving POS with items in the cart
   if (
     activeTab === "pos" &&
     tab !== "pos" &&
@@ -1049,21 +1192,16 @@ function navigate(tab) {
 }
 
 function _doNavigate(tab) {
-  // Restore content-area overflow when leaving POS
   const _area = document.getElementById("content-area");
   if (_area) _area.style.overflow = "";
-  // Gate: check subscription still active (skip for super-admin)
   if (
     currentUser.role !== "super-admin" &&
     currentUser.businessId &&
-    tab !== "subscriptions" &&
-    tab !== "settings" &&
-    tab !== "contact"
+    !["subscriptions", "settings", "contact"].includes(tab)
   ) {
     const active = enforceSubscription(currentUser.businessId);
     if (!active) {
       toast("Subscription expired. Functionality suspended.", "error");
-      // Cashiers have no subscriptions tab - redirect to contact support instead
       tab = currentUser.role === "cashier" ? "contact" : "subscriptions";
     }
   }
@@ -1074,7 +1212,6 @@ function _doNavigate(tab) {
   const allItems = Object.values(NAV_ITEMS).flat();
   const label = allItems.find((i) => i.id === tab)?.label || tab;
   document.getElementById("topbar-title").textContent = label;
-  // Announce new page to screen readers
   const announcer = document.getElementById("page-title-announce");
   if (announcer) {
     announcer.textContent = "";
@@ -1131,21 +1268,18 @@ function openModal(title, bodyHTML) {
 function closeModal(e) {
   if (!e || e.target === document.getElementById("modal-overlay")) {
     document.getElementById("modal-overlay").classList.remove("open");
-    // Restore default click-outside-to-close behaviour
     document.getElementById("modal-overlay").onclick = closeModal;
   }
 }
 
 // ============================================================
-// LOGOUT - redirect-based (multi-file architecture)
+// LOGOUT
 // ============================================================
 function performLogout() {
   if (wsSimInterval) {
-    if (typeof wsSimInterval === "object" && wsSimInterval.clear) {
+    if (typeof wsSimInterval === "object" && wsSimInterval.clear)
       wsSimInterval.clear();
-    } else {
-      clearInterval(wsSimInterval);
-    }
+    else clearInterval(wsSimInterval);
   }
   clearTimeout(sessionTimer);
   clearTimeout(sessionWarnTimer);
@@ -1161,7 +1295,6 @@ function performLogout() {
   activeTab = "";
   window.location.href = "auth.html";
 }
-
 function handleLogout() {
   confirm2("Log Out", "Are you sure you want to log out?", {
     okLabel: "Log Out",
@@ -1171,8 +1304,1094 @@ function handleLogout() {
     performLogout();
   });
 }
-
 function forceLogout(message) {
   if (message) toast(message, "error");
   setTimeout(performLogout, message ? 2000 : 0);
+}
+
+// ============================================================
+// SHARED UTILITY: localDateStr
+// Used by POS, dashboard, transactions, orders. Defined once here.
+// ============================================================
+function localDateStr(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+// ============================================================
+// SHARED: INVENTORY (read/write for admin, read-only for cashier)
+// ============================================================
+function renderInvStockCell(item) {
+  if (item.stock === null || item.stock === undefined)
+    return '<span class="text-muted">-</span>';
+  if (item.stock === 0)
+    return `<span class="badge badge-red" style="font-family:var(--font-mono);font-size:11px">0</span>`;
+  if (item.stock <= 5)
+    return `<span style="color:var(--accent);font-weight:700">${item.stock}</span>`;
+  return `<span>${item.stock}</span>`;
+}
+
+function renderInvRow(item, isRestaurant, showLocCol, locations) {
+  const catLabels = { meals: "Meals", drinks: "Drinks", others: "Others" };
+  const catCell = isRestaurant
+    ? `<td><span class="badge badge-gray">${
+        catLabels[item.category] || item.category || "-"
+      }</span></td>`
+    : "";
+  const locCell = showLocCol
+    ? `<td class="text-muted text-sm">${sanitize(
+        locations?.find((l) => l.id === item.locationId)?.name ||
+          (item.locationId ? "Unknown" : "Shared")
+      )}</td>`
+    : "";
+  const isAdmin = currentUser.role === "admin";
+  const actionCell = isAdmin
+    ? `<td><div class="td-actions">
+    <button class="btn btn-sm btn-outline" onclick="openItemModal('${
+      item.id
+    }')">${Icon.edit}</button>
+    <button class="btn btn-sm ${
+      item.status === "active" ? "btn-outline" : "btn-outline"
+    }" onclick="toggleItemStatus('${item.id}')" title="${
+        item.status === "active" ? "Deactivate" : "Activate"
+      }">${item.status === "active" ? "Deactivate" : "Activate"}</button>
+    <button class="btn btn-sm btn-danger-outline" onclick="deleteItem('${
+      item.id
+    }')">${Icon.trash}</button>
+  </div></td>`
+    : "";
+  return `<tr>
+    <td><strong>${sanitize(item.name)}</strong></td>
+    ${catCell}
+    <td class="text-mono">${formatCurrency(item.price)}</td>
+    <td class="text-mono">${renderInvStockCell(item)}</td>
+    <td><span class="badge ${
+      item.status === "active" ? "badge-green" : "badge-red"
+    }">${item.status}</span></td>
+    ${locCell}
+    ${actionCell}
+  </tr>`;
+}
+
+function renderItems(area) {
+  const store = getStore();
+  const biz = store.businesses.find((b) => b.id === currentUser.businessId);
+  const plan = biz?.plan || "starter";
+  const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.starter;
+  const isRestaurant = biz?.businessType === "restaurant";
+  const isAdmin = currentUser.role === "admin";
+  const cashierLocationId = currentUser.locationId || "";
+  const locations = store.locations.filter(
+    (l) => l.businessId === currentUser.businessId
+  );
+  const hasLocations = locations.length > 0;
+  const allBizItems = store.items.filter(
+    (i) => i.businessId === currentUser.businessId
+  );
+  const items = !hasLocations
+    ? allBizItems
+    : allBizItems.filter((i) => {
+        const shared = !i.locationId;
+        if (cashierLocationId)
+          return shared || i.locationId === cashierLocationId;
+        return isAdmin || shared;
+      });
+  const activeItemCount = items.filter((i) => i.status === "active").length;
+  const showLocCol = isAdmin && hasLocations;
+  const catFilterHTML =
+    isRestaurant && isAdmin
+      ? `<select id="inv-cat-filter" class="form-select" style="height:34px;width:130px" onchange="filterInventoryItems()"><option value="all">All Categories</option><option value="meals">Meals</option><option value="drinks">Drinks</option><option value="others">Others</option></select>`
+      : "";
+  const locBadge =
+    !isAdmin && hasLocations && cashierLocationId
+      ? `<span style="font-size:12px;color:var(--gray-500);font-family:var(--font-mono);margin-left:8px">${sanitize(
+          locations.find((l) => l.id === cashierLocationId)?.name || ""
+        )}</span>`
+      : "";
+  const colCount =
+    (isRestaurant ? 1 : 0) + (showLocCol ? 1 : 0) + (isAdmin ? 1 : 0) + 4;
+  area.innerHTML = `
+  <div class="page-header">
+    <h2 class="page-title">Items <span style="font-size:13px;color:var(--gray-400);font-weight:400;font-family:var(--font-main)">${activeItemCount}${
+    limits.items !== Infinity ? " / " + limits.items : ""
+  } active${locBadge}</span></h2>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <div class="search-box"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--gray-400)"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="inv-search" type="text" placeholder="Search items..." style="padding-left:30px;height:34px" oninput="filterInventoryItems()"/></div>
+      ${catFilterHTML}
+      <select id="inv-status-filter" class="form-select" style="height:34px;width:140px" onchange="filterInventoryItems()"><option value="all">All</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="out-of-stock">Out of Stock</option></select>
+      ${
+        isAdmin
+          ? `<button class="btn btn-primary" onclick="openItemModal(null)">${Icon.plus} Add Item</button>`
+          : ""
+      }
+    </div>
+  </div>
+  <div class="card"><div class="table-wrapper"><table>
+    <thead><tr>
+      <th>Item Name</th>${isRestaurant ? "<th>Category</th>" : ""}
+      <th>Price</th><th>Stock</th><th>Status</th>
+      ${showLocCol ? "<th>Location</th>" : ""}
+      ${isAdmin ? "<th></th>" : ""}
+    </tr></thead>
+    <tbody id="inv-table-body">
+      ${
+        items.length === 0
+          ? `<tr><td colspan="${colCount}"><div class="empty-state">${
+              hasLocations && cashierLocationId
+                ? "No items for your location yet."
+                : "No items in inventory."
+            }</div></td></tr>`
+          : items
+              .map((item) =>
+                renderInvRow(item, isRestaurant, showLocCol, locations)
+              )
+              .join("")
+      }
+    </tbody>
+  </table></div></div>`;
+}
+
+let _invFilterTimer = null;
+function filterInventoryItems() {
+  clearTimeout(_invFilterTimer);
+  _invFilterTimer = setTimeout(_doFilterInventory, 120);
+}
+function _doFilterInventory() {
+  const q = (document.getElementById("inv-search")?.value || "").toLowerCase();
+  const statusFilter =
+    document.getElementById("inv-status-filter")?.value || "all";
+  const catFilter = document.getElementById("inv-cat-filter")?.value || "all";
+  const store = getStore();
+  const biz = store.businesses.find((b) => b.id === currentUser.businessId);
+  const isRestaurant = biz?.businessType === "restaurant";
+  const isAdmin = currentUser.role === "admin";
+  const cashierLocationId = currentUser.locationId || "";
+  const locations = store.locations.filter(
+    (l) => l.businessId === currentUser.businessId
+  );
+  const hasLocations = locations.length > 0;
+  const showLocCol = isAdmin && hasLocations;
+  const allBizItems = store.items.filter(
+    (i) => i.businessId === currentUser.businessId
+  );
+  const items = !hasLocations
+    ? allBizItems
+    : allBizItems.filter((i) => {
+        const shared = !i.locationId;
+        if (cashierLocationId)
+          return shared || i.locationId === cashierLocationId;
+        return isAdmin || shared;
+      });
+  const filtered = items.filter((i) => {
+    const matchName = i.name.toLowerCase().includes(q);
+    let matchStatus;
+    if (statusFilter === "out-of-stock")
+      matchStatus = i.stock !== null && i.stock !== undefined && i.stock === 0;
+    else matchStatus = statusFilter === "all" || i.status === statusFilter;
+    const matchCat =
+      !isRestaurant || catFilter === "all" || i.category === catFilter;
+    return matchName && matchStatus && matchCat;
+  });
+  const tbody = document.getElementById("inv-table-body");
+  if (!tbody) return;
+  const colCount =
+    (isRestaurant ? 1 : 0) + (showLocCol ? 1 : 0) + (isAdmin ? 1 : 0) + 4;
+  tbody.innerHTML =
+    filtered.length === 0
+      ? `<tr><td colspan="${colCount}"><div class="empty-state">No items match your search.</div></td></tr>`
+      : filtered
+          .map((item) =>
+            renderInvRow(item, isRestaurant, showLocCol, locations)
+          )
+          .join("");
+}
+
+// ============================================================
+// SHARED: POS
+// ============================================================
+let posCart = [];
+let posPayMethod = (() => {
+  try {
+    return localStorage.getItem("ss_pos_pay_method") || "cash";
+  } catch (e) {
+    return "cash";
+  }
+})();
+let _posItems = [];
+let _posActiveCat = "all";
+
+function refreshPOSItemCache() {
+  _posItems = getStore().items.filter(
+    (i) => i.businessId === currentUser.businessId && i.status === "active"
+  );
+}
+
+function refreshPOSItemsOnly() {
+  if (activeTab !== "pos") return;
+  refreshPOSItemCache();
+  const q = (
+    document.getElementById("pos-search-input")?.value || ""
+  ).toLowerCase();
+  const store = getStore();
+  const biz = store.businesses.find((b) => b.id === currentUser.businessId);
+  const isRestaurant = biz?.businessType === "restaurant";
+  let filtered = _posItems.filter((i) => i.name.toLowerCase().includes(q));
+  if (isRestaurant && _posActiveCat !== "all")
+    filtered = filtered.filter((i) => i.category === _posActiveCat);
+  const grid = document.getElementById("pos-items-grid");
+  if (grid) grid.innerHTML = renderPOSItemsHTML(filtered);
+}
+
+function renderPOS(area) {
+  refreshPOSItemCache();
+  const store = getStore();
+  const biz = store.businesses.find((b) => b.id === currentUser.businessId);
+  const isRestaurant = biz?.businessType === "restaurant";
+  area.style.paddingBottom = "0";
+  area.style.overflow = "hidden";
+  const sym = getCurrencySymbol();
+  // Category label map for display
+  const CAT_LABELS = {
+    all: "All",
+    meals: "Meals",
+    drinks: "Drinks",
+    others: "Others",
+  };
+  const catTabs = isRestaurant
+    ? `
+    <div class="pos-cat-tabs">
+      ${["all", "meals", "drinks", "others"]
+        .map(
+          (c) =>
+            `<button class="btn btn-sm pos-cat-btn${
+              _posActiveCat === c ? " active-cat" : " btn-outline"
+            }" data-cat="${c}" onclick="setPOSCat('${c}')">${
+              CAT_LABELS[c]
+            }</button>`
+        )
+        .join("")}
+    </div>`
+    : "";
+  area.innerHTML = `
+<div class="pos-layout">
+  <div class="pos-items-panel">
+    ${catTabs}
+    <div class="pos-search">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input id="pos-search-input" type="text" placeholder="Search items…" oninput="filterPOSItems()" autocomplete="off"/>
+    </div>
+    <div class="pos-items-grid" id="pos-items-grid">
+      ${renderPOSItemsHTML(_posItems)}
+    </div>
+  </div>
+  <div class="pos-cart">
+    <div class="pos-cart-header">${
+      Icon.cart
+    } Cart <span id="pos-cart-count" style="margin-left:auto;font-size:11px;color:var(--gray-400)"></span></div>
+    <div class="pos-cart-items" id="pos-cart-items"></div>
+    <div class="pos-cart-footer">
+      <div class="total-row"><span class="total-label">Subtotal</span><span class="total-amount text-mono" id="pos-subtotal">${sym}0.00</span></div>
+      <div class="total-row" style="border-top:2px solid var(--black);padding-top:10px;margin-top:4px">
+        <span class="grand-total-label">Total</span>
+        <span class="grand-total-amount" id="pos-total">${sym}0.00</span>
+      </div>
+      <div class="payment-toggle">
+        <button class="pay-btn${
+          posPayMethod === "cash" ? " active" : ""
+        }" id="pay-btn-cash" onclick="setPayMethod('cash')">Cash</button>
+        <button class="pay-btn${
+          posPayMethod === "card" ? " active" : ""
+        }" id="pay-btn-card" onclick="setPayMethod('card')">Card</button>
+      </div>
+      <button class="btn btn-primary btn-full btn-lg" onclick="handlePOSCheckout()">${
+        Icon.cart
+      } Checkout</button>
+    </div>
+  </div>
+</div>`;
+  updateCartUI();
+}
+
+function renderPOSItemsHTML(items) {
+  if (items.length === 0)
+    return `<div style="grid-column:1/-1;text-align:center;padding:40px 20px;color:var(--gray-400);font-size:13px">No items found.</div>`;
+  return items
+    .map((item) => {
+      const outOfStock =
+        item.stock !== null && item.stock !== undefined && item.stock === 0;
+      const lowStock =
+        !outOfStock &&
+        item.stock !== null &&
+        item.stock !== undefined &&
+        item.stock <= 5;
+      const cartLine = posCart.find((c) => c.id === item.id);
+      const qty = cartLine ? cartLine.quantity : 0;
+      // Use proper CSS classes: pos-item-btn (has border), pos-item-btn.pos-item-out-of-stock (greyed), pos-item-btn.pos-item-low-stock (amber)
+      let cls = "pos-item-btn";
+      if (outOfStock) cls += " pos-item-out-of-stock";
+      else if (lowStock) cls += " pos-item-low-stock";
+      return `<button class="${cls}" data-id="${
+        item.id
+      }" onclick="addToCartById(this)" ${
+        outOfStock ? 'disabled aria-disabled="true"' : ""
+      } type="button">
+      ${
+        qty > 0
+          ? `<span style="position:absolute;top:6px;right:6px;background:var(--black);color:white;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;font-family:var(--font-mono);line-height:16px">${qty}</span>`
+          : ""
+      }
+      <span class="pos-item-name">${sanitize(item.name)}</span>
+      <span class="pos-item-price">${formatCurrency(item.price)}</span>
+      ${
+        outOfStock
+          ? `<span style="font-size:10px;color:var(--red);font-family:var(--font-mono);font-weight:600">Out of stock</span>`
+          : ""
+      }
+      ${
+        lowStock
+          ? `<span style="font-size:10px;color:#8a6200;font-family:var(--font-mono);font-weight:600">${item.stock} left</span>`
+          : ""
+      }
+    </button>`;
+    })
+    .join("");
+}
+
+let _posFilterTimer = null;
+function filterPOSItems() {
+  clearTimeout(_posFilterTimer);
+  _posFilterTimer = setTimeout(_doFilterPOS, 80);
+}
+function _doFilterPOS() {
+  const q = (
+    document.getElementById("pos-search-input")?.value || ""
+  ).toLowerCase();
+  const store = getStore();
+  const biz = store.businesses.find((b) => b.id === currentUser.businessId);
+  const isRestaurant = biz?.businessType === "restaurant";
+  let filtered = _posItems.filter((i) => i.name.toLowerCase().includes(q));
+  if (isRestaurant && _posActiveCat !== "all")
+    filtered = filtered.filter((i) => i.category === _posActiveCat);
+  const grid = document.getElementById("pos-items-grid");
+  if (grid) grid.innerHTML = renderPOSItemsHTML(filtered);
+}
+
+function setPOSCat(cat) {
+  _posActiveCat = cat;
+  // Update only the tab button states — no full POS re-render
+  document.querySelectorAll(".pos-cat-btn").forEach((btn) => {
+    const isActive = btn.dataset.cat === cat;
+    btn.className =
+      "btn btn-sm pos-cat-btn" + (isActive ? " active-cat" : " btn-outline");
+  });
+  // Update only the items grid
+  const q = (
+    document.getElementById("pos-search-input")?.value || ""
+  ).toLowerCase();
+  const store = getStore();
+  const biz = store.businesses.find((b) => b.id === currentUser.businessId);
+  const isRestaurant = biz?.businessType === "restaurant";
+  let filtered = _posItems.filter((i) => i.name.toLowerCase().includes(q));
+  if (isRestaurant && cat !== "all")
+    filtered = filtered.filter((i) => i.category === cat);
+  const grid = document.getElementById("pos-items-grid");
+  if (grid) grid.innerHTML = renderPOSItemsHTML(filtered);
+}
+
+function setPayMethod(method) {
+  posPayMethod = method;
+  try {
+    localStorage.setItem("ss_pos_pay_method", method);
+  } catch (e) {}
+  // Toggle only the pay button states — no full POS re-render
+  const cashBtn = document.getElementById("pay-btn-cash");
+  const cardBtn = document.getElementById("pay-btn-card");
+  if (cashBtn)
+    cashBtn.className = "pay-btn" + (method === "cash" ? " active" : "");
+  if (cardBtn)
+    cardBtn.className = "pay-btn" + (method === "card" ? " active" : "");
+}
+
+function addToCartById(btn) {
+  const id = btn.dataset?.id || btn.getAttribute("data-id");
+  if (id) addToCart(id, btn);
+}
+
+function addToCart(id, sourceBtn) {
+  const store = getStore();
+  const item = store.items.find((i) => i.id === id);
+  if (!item || item.status !== "active") return;
+  if (item.stock !== null && item.stock !== undefined && item.stock === 0) {
+    toast("This item is out of stock", "error");
+    return;
+  }
+  const existing = posCart.find((c) => c.id === id);
+  if (existing) {
+    if (
+      item.stock !== null &&
+      item.stock !== undefined &&
+      existing.quantity >= item.stock
+    ) {
+      toast(`Only ${item.stock} in stock`, "error");
+      return;
+    }
+    existing.quantity++;
+  } else {
+    posCart.push({
+      id: item.id,
+      name: item.name,
+      price: item.price,
+      quantity: 1,
+    });
+  }
+  // Flash animation on the clicked button
+  if (sourceBtn) {
+    sourceBtn.classList.remove("flash");
+    void sourceBtn.offsetWidth; // force reflow to restart animation
+    sourceBtn.classList.add("flash");
+    setTimeout(() => sourceBtn.classList.remove("flash"), 400);
+    // Update just this button's qty badge without re-rendering the whole grid
+    const cartLine = posCart.find((c) => c.id === id);
+    const qty = cartLine ? cartLine.quantity : 0;
+    let badge = sourceBtn.querySelector(".pos-qty-badge");
+    if (!badge) {
+      badge = document.createElement("span");
+      badge.className = "pos-qty-badge";
+      badge.style.cssText =
+        "position:absolute;top:6px;right:6px;background:var(--black);color:white;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;font-family:var(--font-mono);line-height:16px";
+      sourceBtn.appendChild(badge);
+    }
+    badge.textContent = qty;
+  } else {
+    refreshPOSItemsOnly();
+  }
+  updateCartUI();
+}
+
+function changeQty(id, delta) {
+  const line = posCart.find((c) => c.id === id);
+  if (!line) return;
+  line.quantity += delta;
+  if (line.quantity <= 0) posCart = posCart.filter((c) => c.id !== id);
+  updateCartUI();
+  refreshPOSItemsOnly();
+}
+
+function removeFromCart(id) {
+  posCart = posCart.filter((c) => c.id !== id);
+  updateCartUI();
+  refreshPOSItemsOnly();
+}
+
+function updateCartUI() {
+  const cartEl = document.getElementById("pos-cart-items");
+  const subtotalEl = document.getElementById("pos-subtotal");
+  const totalEl = document.getElementById("pos-total");
+  const countEl = document.getElementById("pos-cart-count");
+  if (!cartEl) return;
+  const subtotal = posCart.reduce((a, c) => a + c.price * c.quantity, 0);
+  const totalQty = posCart.reduce((a, c) => a + c.quantity, 0);
+  if (countEl)
+    countEl.textContent =
+      totalQty > 0 ? `${totalQty} item${totalQty === 1 ? "" : "s"}` : "";
+  if (posCart.length === 0) {
+    cartEl.innerHTML = `<div class="cart-empty-state"><svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg><span>Cart is empty</span></div>`;
+  } else {
+    cartEl.innerHTML = posCart
+      .map(
+        (c) => `
+      <div class="pos-cart-item">
+        <div class="pos-cart-item-info">
+          <div class="pos-cart-item-name">${sanitize(c.name)}</div>
+          <div class="pos-cart-item-price">${formatCurrency(c.price)}</div>
+        </div>
+        <div class="qty-ctrl">
+          <button class="qty-btn" onclick="changeQty('${
+            c.id
+          }',-1)" aria-label="Decrease">−</button>
+          <span class="qty-num">${c.quantity}</span>
+          <button class="qty-btn" onclick="changeQty('${
+            c.id
+          }',1)" aria-label="Increase">+</button>
+        </div>
+        <button class="cart-remove-btn" onclick="removeFromCart('${
+          c.id
+        }')" aria-label="Remove">${Icon.trash}</button>
+      </div>`
+      )
+      .join("");
+  }
+  if (subtotalEl) subtotalEl.textContent = formatCurrency(subtotal);
+  if (totalEl) totalEl.textContent = formatCurrency(subtotal);
+}
+
+function handlePOSCheckout() {
+  if (!currentUser.businessId) return;
+  if (currentUser.role !== "super-admin") {
+    const active = enforceSubscription(currentUser.businessId);
+    if (!active) {
+      toast("Subscription expired. POS transactions are suspended.", "error");
+      navigate(currentUser.role === "cashier" ? "contact" : "subscriptions");
+      return;
+    }
+  }
+  if (posCart.length === 0) {
+    toast("Add items to the cart first", "error");
+    return;
+  }
+  const store = getStore();
+  const stockErrors = [];
+  for (const cartLine of posCart) {
+    const freshItem = store.items.find((i) => i.id === cartLine.id);
+    if (
+      freshItem &&
+      freshItem.stock !== null &&
+      freshItem.stock !== undefined &&
+      freshItem.stock < cartLine.quantity
+    ) {
+      stockErrors.push(
+        `${sanitize(freshItem.name)}: only ${freshItem.stock} unit${
+          freshItem.stock === 1 ? "" : "s"
+        } available, but ${cartLine.quantity} in cart.`
+      );
+    }
+  }
+  if (stockErrors.length > 0) {
+    stockErrors.forEach((err) => toast(`Stock issue: ${err}`, "error"));
+    refreshPOSItemsOnly();
+    return;
+  }
+  const subtotal = posCart.reduce((a, c) => a + c.price * c.quantity, 0);
+  const typeLabel = posPayMethod === "card" ? "Card" : "Cash";
+  const isCash = posPayMethod === "cash";
+  const sym = getCurrencySymbol();
+  openModal(
+    `Confirm ${typeLabel} Payment`,
+    `
+    <div style="padding:8px 0">
+      <div style="background:var(--gray-50);border:1px solid var(--gray-100);border-radius:var(--radius);padding:12px;margin-bottom:14px;font-size:13px">
+        ${posCart
+          .map(
+            (c) =>
+              `<div style="display:flex;justify-content:space-between;padding:2px 0"><span>${sanitize(
+                c.name
+              )} ×${c.quantity}</span><span class="text-mono">${formatCurrency(
+                c.price * c.quantity
+              )}</span></div>`
+          )
+          .join("")}
+        <div style="display:flex;justify-content:space-between;padding-top:8px;border-top:1px solid var(--gray-200);font-weight:700"><span>Subtotal</span><span class="text-mono" id="modal-subtotal">${formatCurrency(
+          subtotal
+        )}</span></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+        <label style="font-size:12px;color:var(--gray-500);white-space:nowrap;font-family:var(--font-mono);font-weight:600;text-transform:uppercase;letter-spacing:.06em">Discount</label>
+        <input id="discount-val" type="number" min="0" class="form-input" style="height:34px;width:90px" placeholder="0" oninput="updateDiscountPreview(${subtotal})"/>
+        <select id="discount-type" class="form-select" style="height:34px;width:70px" onchange="updateDiscountPreview(${subtotal})"><option value="flat">${sym}</option><option value="pct">%</option></select>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:20px;font-weight:900;font-family:var(--font-mono);margin-bottom:16px;padding:10px 0;border-top:2px solid var(--black)"><span>Total</span><span id="modal-total">${formatCurrency(
+        subtotal
+      )}</span></div>
+      ${
+        isCash
+          ? `
+      <div style="margin-bottom:8px">
+        <label style="display:block;font-size:12px;color:var(--gray-500);font-family:var(--font-mono);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">Amount Received <span style="color:var(--red)">*</span></label>
+        <input id="cash-received" type="number" min="0" step="0.01" class="form-input" style="height:40px" placeholder="Enter amount given by customer" oninput="updateChangePreview(${subtotal})" autocomplete="off"/>
+        <div id="cash-received-error" style="display:none;font-size:11px;color:var(--red);margin-top:4px;font-family:var(--font-mono)">Amount received is required for cash transactions.</div>
+      </div>
+      <div id="change-preview" style="display:none;justify-content:space-between;font-size:15px;font-weight:700;font-family:var(--font-mono);margin-bottom:14px;padding:10px 12px;background:var(--green-bg);border:1px solid #b2d9c3;border-radius:var(--radius)">
+        <span>Change</span><span id="change-amount" style="color:var(--green)">${formatCurrency(
+          0
+        )}</span>
+      </div>`
+          : `<div style="font-size:13px;color:var(--gray-500);text-align:center;margin-bottom:12px">Present card to terminal to complete payment</div>`
+      }
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-outline btn-lg" style="flex:1" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary btn-lg" style="flex:2" onclick="confirmPOSPayment('${posPayMethod}',${subtotal})">${
+      Icon.checkCircle
+    } Confirm ${typeLabel}</button>
+      </div>
+    </div>`
+  );
+}
+
+function updateDiscountPreview(subtotal) {
+  const val = parseFloat(document.getElementById("discount-val")?.value) || 0;
+  const type = document.getElementById("discount-type")?.value || "flat";
+  const discount =
+    type === "pct"
+      ? subtotal * (Math.min(val, 100) / 100)
+      : Math.min(val, subtotal);
+  const finalTotal = Math.max(0, subtotal - discount);
+  const el = document.getElementById("modal-total");
+  if (el) el.textContent = formatCurrency(finalTotal);
+}
+
+function updateChangePreview(subtotal) {
+  const discountVal =
+    parseFloat(document.getElementById("discount-val")?.value) || 0;
+  const dtype = document.getElementById("discount-type")?.value || "flat";
+  const discount =
+    dtype === "pct"
+      ? subtotal * (Math.min(discountVal, 100) / 100)
+      : Math.min(discountVal, subtotal);
+  const finalTotal = Math.max(0, subtotal - discount);
+  const cashInput = document.getElementById("cash-received");
+  const received = parseFloat(cashInput?.value) || 0;
+  const change = received - finalTotal;
+  const previewEl = document.getElementById("change-preview");
+  const changeEl = document.getElementById("change-amount");
+  const errorEl = document.getElementById("cash-received-error");
+  if (received > 0 && cashInput) {
+    cashInput.classList.remove("invalid");
+    if (errorEl) errorEl.style.display = "none";
+  }
+  if (previewEl && changeEl) {
+    if (received > 0) {
+      previewEl.style.display = "flex";
+      if (change >= 0) {
+        changeEl.textContent = formatCurrency(change);
+        changeEl.style.color = "var(--green)";
+        previewEl.style.background = "var(--green-bg)";
+        previewEl.style.borderColor = "#b2d9c3";
+      } else {
+        changeEl.textContent = `${formatCurrency(Math.abs(change))} short`;
+        changeEl.style.color = "var(--red)";
+        previewEl.style.background = "var(--red-bg)";
+        previewEl.style.borderColor = "#f5c0c4";
+      }
+    } else {
+      previewEl.style.display = "none";
+    }
+  }
+}
+
+function confirmPOSPayment(type, subtotal) {
+  const val = parseFloat(document.getElementById("discount-val")?.value) || 0;
+  const dtype = document.getElementById("discount-type")?.value || "flat";
+  window._posLastDiscountType = dtype;
+  window._posLastDiscountVal = val;
+  const discount =
+    dtype === "pct"
+      ? subtotal * (Math.min(val, 100) / 100)
+      : Math.min(val, subtotal);
+  const finalTotal = Math.max(0, subtotal - discount);
+  if (type === "cash") {
+    const cashInput = document.getElementById("cash-received");
+    const errorEl = document.getElementById("cash-received-error");
+    const receivedRaw = cashInput?.value?.trim();
+    const received = parseFloat(receivedRaw);
+    if (!receivedRaw || isNaN(received) || received <= 0) {
+      if (cashInput) {
+        cashInput.classList.add("invalid");
+        cashInput.focus();
+      }
+      if (errorEl) errorEl.style.display = "block";
+      toast("Please enter the amount received from the customer.", "error");
+      return;
+    }
+    if (received < finalTotal) {
+      if (cashInput) {
+        cashInput.classList.add("invalid");
+        cashInput.focus();
+      }
+      if (errorEl) {
+        errorEl.textContent = `Amount received (${formatCurrency(
+          received
+        )}) is less than the total (${formatCurrency(finalTotal)}).`;
+        errorEl.style.display = "block";
+      }
+      toast("Amount received is less than the total due.", "error");
+      return;
+    }
+    if (cashInput) cashInput.classList.remove("invalid");
+    if (errorEl) errorEl.style.display = "none";
+    window._posAmountReceived = received;
+    window._posChange = Math.max(0, received - finalTotal);
+  } else {
+    window._posAmountReceived = null;
+    window._posChange = null;
+  }
+  closeModal();
+  recordTransaction(finalTotal, type, discount > 0 ? discount : null);
+}
+
+function generateReceiptId(businessId) {
+  const store = getStore();
+  const biz = store.businesses.find((b) => b.id === businessId);
+  const bizName = (biz?.name || "SALE")
+    .replace(/[^a-zA-Z]/g, "")
+    .toUpperCase()
+    .slice(0, 4)
+    .padEnd(4, "X");
+  const todayStr = localDateStr(new Date());
+  // Include date in the ID format: BIZX-YYYYMMDD-0001 so receipts are unique across days
+  const todayCompact = todayStr.replace(/-/g, "");
+  const todayCount = (store.transactions || []).filter(
+    (t) =>
+      t.businessId === businessId &&
+      t.createdAt &&
+      localDateStr(new Date(t.createdAt)) === todayStr
+  ).length;
+  const seq = String(todayCount + 1).padStart(4, "0");
+  return `${bizName}-${todayCompact}-${seq}`;
+}
+
+function recordTransaction(total, type, discount) {
+  const itemsSummary = posCart
+    .map((c) => `${sanitize(c.name)} ×${c.quantity}`)
+    .join(", ");
+  const receiptId = generateReceiptId(currentUser.businessId);
+  const cartSnapshot = [...posCart];
+  const txn = {
+    id: `trx-${uid()}`,
+    receiptId,
+    businessId: currentUser.businessId,
+    cashierId: currentUser.id,
+    cashierName: currentUser.name,
+    amount: total,
+    discount: discount || 0,
+    discountType: window._posLastDiscountType || "flat",
+    discountPct:
+      window._posLastDiscountType === "pct"
+        ? window._posLastDiscountVal || 0
+        : null,
+    amountReceived: window._posAmountReceived || null,
+    change: window._posChange || null,
+    type,
+    itemsSummary,
+    createdAt: new Date().toISOString(),
+  };
+  updateStore((d) => {
+    const updatedItems = d.items.map((item) => {
+      const cartLine = cartSnapshot.find((c) => c.id === item.id);
+      if (!cartLine) return item;
+      if (item.stock === null || item.stock === undefined) return item;
+      return { ...item, stock: Math.max(0, item.stock - cartLine.quantity) };
+    });
+    return {
+      ...d,
+      transactions: [...d.transactions, txn],
+      items: updatedItems,
+    };
+  });
+  addAuditLog(`Processed ${type} transaction`, formatCurrency(total));
+  // Update dashboard chart live if it's currently visible (admin only)
+  if (typeof updateDashboardChart === "function" && activeTab === "dashboard")
+    updateDashboardChart();
+  posCart = [];
+  const searchInput = document.getElementById("pos-search-input");
+  if (searchInput) searchInput.value = "";
+  updateCartUI();
+  refreshPOSItemCache();
+  filterPOSItems();
+  openModal(
+    "Receipt",
+    `
+    <div style="text-align:center;padding:8px 0 16px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--gray-400);font-family:var(--font-mono);margin-bottom:4px">Receipt</div>
+      <div style="font-size:13px;font-family:var(--font-mono);color:var(--gray-500);margin-bottom:16px">${receiptId}</div>
+      <div style="background:var(--gray-50);border:1px solid var(--gray-100);border-radius:var(--radius);padding:14px;text-align:left;margin-bottom:16px;font-size:13px">
+        ${cartSnapshot
+          .map(
+            (c) =>
+              `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--gray-100)"><span>${sanitize(
+                c.name
+              )} ×${c.quantity}</span><span class="text-mono">${formatCurrency(
+                c.price * c.quantity
+              )}</span></div>`
+          )
+          .join("")}
+        ${
+          discount
+            ? `<div style="display:flex;justify-content:space-between;padding:3px 0;color:var(--green)"><span>Discount (${
+                window._posLastDiscountType === "pct"
+                  ? window._posLastDiscountVal + "%"
+                  : "flat"
+              })</span><span class="text-mono">−${formatCurrency(
+                discount
+              )}</span></div>`
+            : ""
+        }
+        <div style="display:flex;justify-content:space-between;padding-top:8px;font-weight:700"><span>Total</span><span class="text-mono">${formatCurrency(
+          total
+        )}</span></div>
+      </div>
+      <div style="font-size:12px;color:var(--gray-500);margin-bottom:4px">Payment: <strong>${
+        type === "cash" ? "Cash" : "Card"
+      }</strong></div>
+      ${
+        type === "cash" && window._posAmountReceived
+          ? `<div style="font-size:12px;color:var(--gray-500);margin-bottom:2px">Amount Received: <strong class="text-mono">${formatCurrency(
+              window._posAmountReceived
+            )}</strong></div>`
+          : ""
+      }
+      ${
+        type === "cash" && window._posChange != null
+          ? `<div style="font-size:13px;color:var(--green);font-weight:700;margin-bottom:4px">Change: ${formatCurrency(
+              window._posChange
+            )}</div>`
+          : ""
+      }
+      <div style="font-size:12px;color:var(--gray-400);margin-bottom:20px">Served by: ${sanitize(
+        currentUser.name
+      )}</div>
+      <button class="btn btn-primary btn-full btn-lg" onclick="closeModal()">${
+        Icon.checkCircle
+      } Done</button>
+    </div>`
+  );
+}
+
+// POS cart unload warning (all app pages)
+window.addEventListener("beforeunload", function (e) {
+  if (typeof posCart !== "undefined" && posCart && posCart.length > 0) {
+    e.preventDefault();
+    e.returnValue =
+      "You have items in the POS cart. Closing this tab will lose the cart.";
+  }
+});
+
+// ============================================================
+// SHARED: CONTACT SUPPORT & SEND MESSAGE
+// ============================================================
+function renderContact(area) {
+  const store = getStore();
+  const biz = store.businesses.find((b) => b.id === currentUser.businessId);
+  area.innerHTML = `
+  <div class="page-header"><h2 class="page-title">Contact Support</h2></div>
+  <div class="card" style="max-width:500px">
+    <div class="card-body">
+      <div class="form-group"><label class="form-label">Business Name</label><input class="form-input" value="${sanitize(
+        biz?.name || "N/A"
+      )}" disabled/></div>
+      <div class="form-group"><label class="form-label">Your Name</label><input class="form-input" value="${sanitize(
+        currentUser.name
+      )}" disabled/></div>
+      <div class="form-group"><label class="form-label">Email Address</label><input class="form-input" value="${
+        currentUser.email || ""
+      }" disabled/></div>
+      <div class="form-group"><label class="form-label">Message</label><textarea id="support-msg" class="form-textarea" placeholder="How can we help you?"></textarea></div>
+      <button class="btn btn-primary btn-full btn-lg" onclick="sendSupportMessage()">${
+        Icon.mail
+      } Send Message</button>
+    </div>
+  </div>`;
+}
+
+function sendSupportMessage() {
+  const msgEl = document.getElementById("support-msg");
+  const msg = msgEl ? msgEl.value.trim() : "";
+  if (!msg) {
+    if (msgEl) msgEl.classList.add("invalid");
+    toast("Please enter a message", "error");
+    return;
+  }
+  if (msgEl) msgEl.classList.remove("invalid");
+  const store = getStore();
+  const biz = store.businesses.find((b) => b.id === currentUser.businessId);
+  updateStore((d) => ({
+    ...d,
+    messages: [
+      ...d.messages,
+      {
+        id: `msg-${uid()}`,
+        businessId: currentUser.businessId || "direct",
+        businessName: biz?.name || currentUser.name,
+        senderName: currentUser.name,
+        senderRole: currentUser.role,
+        email: currentUser.email,
+        message: sanitize(msg),
+        createdAt: new Date().toISOString(),
+        read: false,
+      },
+    ],
+  }));
+  document.getElementById("support-msg").value = "";
+  toast("Message sent to support!", "success");
+}
+
+// ============================================================
+// SHARED: SETTINGS (admin + cashier)
+// super-admin has its own renderSettings in super-admin.js
+// ============================================================
+function renderSettings(area) {
+  if (currentUser.role === "super-admin") {
+    _renderSuperAdminSettings(area);
+    return;
+  }
+  const store = getStore();
+  const biz = currentUser.businessId
+    ? store.businesses.find((b) => b.id === currentUser.businessId)
+    : null;
+  const st = biz ? getSubStatus(biz.id) : null;
+  const limits = biz ? PLAN_LIMITS[biz.plan] || PLAN_LIMITS.starter : null;
+  const isCashier = currentUser.role === "cashier";
+  area.innerHTML = `
+  <div class="page-header"><h2 class="page-title">Account Settings</h2></div>
+  <div style="display:flex;flex-direction:column;gap:20px;max-width:1040px">
+    <div class="settings-grid" style="display:grid;grid-template-columns:${
+      biz && !isCashier ? "1fr 1fr" : "1fr"
+    };gap:20px;align-items:start">
+      ${
+        biz && !isCashier
+          ? `
+      <div class="card">
+        <div class="card-header"><span class="card-title">Business Details</span></div>
+        <div class="card-body">
+          <div class="form-group"><label class="form-label">Business Name</label><input id="s-biz-name" class="form-input" value="${sanitize(
+            biz.name
+          )}" placeholder="Business name"/></div>
+          <div class="form-group"><label class="form-label">Business Email</label><input id="s-biz-email" class="form-input" type="email" value="${sanitize(
+            biz.email || ""
+          )}" placeholder="business@example.com"/></div>
+          <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px">
+            <div><div class="form-label">Plan</div><span class="badge badge-gray" style="font-size:13px;padding:4px 10px">${
+              limits?.label || biz.plan
+            }</span></div>
+            <div><div class="form-label">Subscription</div><span class="badge ${
+              st?.badge || "badge-gray"
+            }" style="font-size:13px;padding:4px 10px">${
+              st?.label || "Unknown"
+            }</span></div>
+            ${
+              st?.daysLeft
+                ? `<div><div class="form-label">Days Left</div><span style="font-size:14px;font-weight:700;font-family:var(--font-mono)">${st.daysLeft}</span></div>`
+                : ""
+            }
+          </div>
+          <button class="btn btn-primary btn-full" onclick="saveBusinessDetails()">Update Business Details</button>
+        </div>
+      </div>`
+          : ""
+      }
+      <div class="card" style="${isCashier ? "max-width:480px" : ""}">
+        <div class="card-header"><span class="card-title">Personal Details</span></div>
+        <div class="card-body">
+          <div class="form-group"><label class="form-label">Full Name</label><input id="s-name" class="form-input" value="${sanitize(
+            currentUser.name
+          )}"/></div>
+          <div class="form-group"><label class="form-label">Email Address</label><input id="s-email" class="form-input" type="email" value="${
+            currentUser.email
+          }"/></div>
+          <div class="form-group"><label class="form-label">New Password</label>
+            <div class="pw-wrap"><input id="s-pass" class="form-input" type="password" placeholder="Leave blank to keep current"/>
+            <button class="pw-toggle" type="button" onclick="togglePw('s-pass')"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
+          </div>
+          <button class="btn btn-primary btn-full btn-lg" onclick="saveSettings()">Update Details</button>
+        </div>
+      </div>
+    </div>
+    ${
+      currentUser.role === "admin"
+        ? `
+    <div class="card" style="border-color:var(--red);background:var(--red-bg);margin-bottom:4px">
+      <div class="card-body" style="display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--red);font-family:var(--font-mono);margin-bottom:4px">Danger Zone</div>
+          <div style="font-size:13px;color:var(--gray-600)">Permanently delete your business, all cashier accounts, inventory, transactions and subscription data.</div>
+        </div>
+        <button class="btn btn-danger-outline" onclick="deleteAccount()" style="white-space:nowrap;flex-shrink:0">Delete Account</button>
+      </div>
+    </div>`
+        : ""
+    }
+  </div>`;
+}
+
+function saveBusinessDetails() {
+  const nameEl = document.getElementById("s-biz-name");
+  const emailEl = document.getElementById("s-biz-email");
+  if (!nameEl) return;
+  const name = nameEl.value.trim();
+  const email = emailEl ? emailEl.value.trim().toLowerCase() : "";
+  if (!name) {
+    toast("Business name cannot be empty", "error");
+    return;
+  }
+  if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    toast("Please enter a valid business email", "error");
+    return;
+  }
+  updateStore((d) => ({
+    ...d,
+    businesses: d.businesses.map((b) =>
+      b.id === currentUser.businessId
+        ? { ...b, name: sanitize(name), ...(email ? { email } : {}) }
+        : b
+    ),
+  }));
+  addAuditLog("Updated business details", name);
+  toast("Business details updated", "success");
+}
+
+function saveSettings() {
+  const name = document.getElementById("s-name").value.trim();
+  const email = document.getElementById("s-email").value.trim().toLowerCase();
+  const pass = document.getElementById("s-pass").value;
+  if (!name || !email) {
+    toast("Name and email are required", "error");
+    return;
+  }
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    toast("Please enter a valid email address", "error");
+    return;
+  }
+  const store = getStore();
+  const dup = store.users.find(
+    (u) => u.email.toLowerCase() === email && u.id !== currentUser.id
+  );
+  if (dup) {
+    toast("This email is already in use", "error");
+    return;
+  }
+  const updatedPass = pass ? pass : currentUser.password;
+  currentUser = {
+    ...currentUser,
+    name: sanitize(name),
+    email,
+    password: updatedPass,
+  };
+  updateStore((d) => ({
+    ...d,
+    users: d.users.map((u) =>
+      u.id === currentUser.id
+        ? { ...u, name: sanitize(name), email, password: updatedPass }
+        : u
+    ),
+    currentUser,
+  }));
+  document.getElementById("topbar-user-name").textContent = currentUser.name;
+  document.getElementById("s-pass").value = "";
+  toast("Settings updated", "success");
+}
+
+function deleteAccount() {
+  confirm2(
+    "Delete Account",
+    "This will permanently delete your business, all cashier accounts, inventory, transactions and subscription data. This cannot be undone."
+  ).then((ok) => {
+    if (!ok) return;
+    const bizId = currentUser.businessId;
+    updateStore((d) => ({
+      ...d,
+      users: d.users.filter(
+        (u) => u.id !== currentUser.id && u.businessId !== bizId
+      ),
+      businesses: d.businesses.filter((b) => b.id !== bizId),
+      items: d.items.filter((i) => i.businessId !== bizId),
+      transactions: d.transactions.filter((t) => t.businessId !== bizId),
+      subscriptions: d.subscriptions.filter((s) => s.businessId !== bizId),
+      messages: d.messages.filter((m) => m.businessId !== bizId),
+      locations: d.locations.filter((l) => l.businessId !== bizId),
+      auditLogs: d.auditLogs.filter((l) => l.businessId !== bizId),
+      currentUser: null,
+    }));
+    performLogout();
+  });
 }

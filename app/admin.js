@@ -1539,16 +1539,16 @@ function renderSubscriptions(area) {
               : ""
           }
           ${
+            biz.plan !== "trial" && st?.active && sub.status !== "cancelled"
+              ? `<button class="btn btn-danger-outline" onclick="handleCancelSub()">Cancel Subscription</button>`
+              : ""
+          }
+          ${
             biz.plan !== "trial" &&
             st?.active &&
             sub.status !== "cancelled" &&
             !renewalOpen
               ? `<span style="font-size:11px;color:var(--gray-500);font-family:var(--font-mono)">Renewal opens in the last ${RENEWAL_WINDOW_DAYS} days of your billing period.</span>`
-              : ""
-          }
-          ${
-            biz.plan !== "trial" && st?.active && sub.status !== "cancelled"
-              ? `<button class="btn btn-danger-outline" onclick="handleCancelSub()">Cancel Subscription</button>`
               : ""
           }
           ${

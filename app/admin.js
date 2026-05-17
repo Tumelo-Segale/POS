@@ -21,25 +21,29 @@ function fmtBar(n) {
 function computeWeekData(txns) {
   const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const now = new Date();
-  const todayDow = now.getDay();
   const bucket = {};
   txns.forEach((t) => {
     if (!t.createdAt || !t.amount) return;
     const txDs = localDateStr(new Date(t.createdAt));
     bucket[txDs] = (bucket[txDs] || 0) + t.amount;
   });
-  return DAY_NAMES.map((dayName, i) => {
+  // Always show the 7 days ending today (6 days ago → today).
+  // The old approach used the calendar week (Sun-Sat) which meant that on
+  // Sundays every slot after index 0 was marked isFuture, leaving the chart
+  // almost entirely blank. Rolling window avoids that entirely.
+  return Array.from({ length: 7 }, (_, i) => {
     const slotDate = new Date(now);
     slotDate.setHours(0, 0, 0, 0);
-    slotDate.setDate(slotDate.getDate() - (todayDow - i));
+    slotDate.setDate(slotDate.getDate() - (6 - i)); // i=0 → 6 days ago, i=6 → today
     const ds = localDateStr(slotDate);
-    const isFuture = i > todayDow;
-    const isToday = i === todayDow;
+    const isToday = i === 6;
+    const isFuture = false; // rolling window never includes future dates
+    const dayName = DAY_NAMES[slotDate.getDay()];
     const dateLabel =
       String(slotDate.getDate()).padStart(2, "0") +
       "/" +
       String(slotDate.getMonth() + 1).padStart(2, "0");
-    const amount = isFuture ? 0 : bucket[ds] || 0;
+    const amount = bucket[ds] || 0;
     return { dayName, dateLabel, ds, amount, isFuture, isToday };
   });
 }
@@ -200,6 +204,15 @@ function renderAdminDashboard(area) {
     }
   }
   area.innerHTML = `
+    <div class="page-header">
+      <div>
+        <h2 class="page-title">Dashboard</h2>
+      </div>
+      <span style="font-size:11px;color:var(--gray-400);font-family:var(--font-mono)">${new Date().toLocaleDateString(
+        "en-ZA",
+        { weekday: "long", day: "2-digit", month: "long", year: "numeric" }
+      )}</span>
+    </div>
     ${subBanner}
     <div class="stats-grid stats-grid-4 mb-20">
       <div class="stat-card"><div class="stat-icon">${
@@ -265,9 +278,9 @@ function renderAdminDashboard(area) {
     </div>
     ${locationBreakdownHTML}`;
 
-  // Fix #30: week label year uses SATURDAY's year so year-spanning weeks are correct
-  const sunDate = weekData[0];
-  const satDate = weekData[6];
+  // Week label: show rolling window range e.g. "11 May – 17 May 2026"
+  const startDate = weekData[0]; // 6 days ago
+  const endDate = weekData[6]; // today
   const fmt = (ds) => {
     const [, m, day] = ds.split("-");
     const months = [
@@ -288,19 +301,20 @@ function renderAdminDashboard(area) {
   };
   const weekLabel = document.getElementById("dash-week-label");
   if (weekLabel)
-    weekLabel.textContent = `${fmt(sunDate.ds)} – ${fmt(
-      satDate.ds
-    )} ${satDate.ds.slice(0, 4)}`;
+    weekLabel.textContent = `${fmt(startDate.ds)} – ${fmt(
+      endDate.ds
+    )} ${endDate.ds.slice(0, 4)}`;
   scheduleWeekReset();
 }
 
 let _weekResetTimer = null;
 function scheduleWeekReset() {
   if (_weekResetTimer) clearTimeout(_weekResetTimer);
+  // Rolling window shifts by one day at midnight, so refresh the chart then.
   const now = new Date();
-  const nextSunday = new Date(now);
-  nextSunday.setDate(now.getDate() + ((7 - now.getDay()) % 7) || 7);
-  nextSunday.setHours(0, 0, 0, 0);
+  const nextMidnight = new Date(now);
+  nextMidnight.setDate(now.getDate() + 1);
+  nextMidnight.setHours(0, 0, 0, 0);
   _weekResetTimer = setTimeout(() => {
     if (
       activeTab === "dashboard" &&
@@ -308,7 +322,7 @@ function scheduleWeekReset() {
       currentUser.role === "admin"
     )
       renderAdminDashboard(document.getElementById("content-area"));
-  }, nextSunday - now);
+  }, nextMidnight - now);
 }
 
 // ============================================================

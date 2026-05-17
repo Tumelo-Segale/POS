@@ -1193,7 +1193,10 @@ function navigate(tab) {
 
 function _doNavigate(tab) {
   const _area = document.getElementById("content-area");
-  if (_area) _area.style.overflow = "";
+  if (_area) {
+    _area.style.overflow = "";
+    _area.style.padding = "";
+  }
   if (
     currentUser.role !== "super-admin" &&
     currentUser.businessId &&
@@ -1549,7 +1552,7 @@ function renderPOS(area) {
   const store = getStore();
   const biz = store.businesses.find((b) => b.id === currentUser.businessId);
   const isRestaurant = biz?.businessType === "restaurant";
-  area.style.paddingBottom = "0";
+  area.style.padding = "0";
   area.style.overflow = "hidden";
   const sym = getCurrencySymbol();
   // Category label map for display
@@ -1637,23 +1640,8 @@ function renderPOSItemsHTML(items) {
       }" onclick="addToCartById(this)" ${
         outOfStock ? 'disabled aria-disabled="true"' : ""
       } type="button">
-      ${
-        qty > 0
-          ? `<span style="position:absolute;top:6px;right:6px;background:var(--black);color:white;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;font-family:var(--font-mono);line-height:16px">${qty}</span>`
-          : ""
-      }
       <span class="pos-item-name">${sanitize(item.name)}</span>
       <span class="pos-item-price">${formatCurrency(item.price)}</span>
-      ${
-        outOfStock
-          ? `<span style="font-size:10px;color:var(--red);font-family:var(--font-mono);font-weight:600">Out of stock</span>`
-          : ""
-      }
-      ${
-        lowStock
-          ? `<span style="font-size:10px;color:#8a6200;font-family:var(--font-mono);font-weight:600">${item.stock} left</span>`
-          : ""
-      }
     </button>`;
     })
     .join("");
@@ -1752,18 +1740,6 @@ function addToCart(id, sourceBtn) {
     void sourceBtn.offsetWidth; // force reflow to restart animation
     sourceBtn.classList.add("flash");
     setTimeout(() => sourceBtn.classList.remove("flash"), 400);
-    // Update just this button's qty badge without re-rendering the whole grid
-    const cartLine = posCart.find((c) => c.id === id);
-    const qty = cartLine ? cartLine.quantity : 0;
-    let badge = sourceBtn.querySelector(".pos-qty-badge");
-    if (!badge) {
-      badge = document.createElement("span");
-      badge.className = "pos-qty-badge";
-      badge.style.cssText =
-        "position:absolute;top:6px;right:6px;background:var(--black);color:white;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;font-family:var(--font-mono);line-height:16px";
-      sourceBtn.appendChild(badge);
-    }
-    badge.textContent = qty;
   } else {
     refreshPOSItemsOnly();
   }

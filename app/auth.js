@@ -61,9 +61,16 @@ function goToPlanPage() {
   const owner = document.getElementById("reg-owner").value.trim();
   const email = document.getElementById("reg-email").value.trim();
   const password = document.getElementById("reg-password").value;
-  ["reg-biz", "reg-owner", "reg-email", "reg-password"].forEach((id) =>
-    document.getElementById(id).classList.remove("invalid")
-  );
+  [
+    "reg-biz",
+    "reg-owner",
+    "reg-email",
+    "reg-password",
+    "reg-password-confirm",
+  ].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove("invalid");
+  });
   let errors = [];
   if (!bizName) {
     document.getElementById("reg-biz").classList.add("invalid");
@@ -80,6 +87,16 @@ function goToPlanPage() {
   if (!password || password.length < 6) {
     document.getElementById("reg-password").classList.add("invalid");
     errors.push("Password (min. 6 chars)");
+  }
+  const confirmPassword =
+    document.getElementById("reg-password-confirm")?.value || "";
+  if (!confirmPassword) {
+    document.getElementById("reg-password-confirm").classList.add("invalid");
+    errors.push("Confirm password");
+  } else if (password && confirmPassword !== password) {
+    document.getElementById("reg-password-confirm").classList.add("invalid");
+    document.getElementById("reg-password").classList.add("invalid");
+    errors.push("Passwords do not match");
   }
   if (errors.length) {
     toast("Please fill in: " + errors.join(", "), "error");
@@ -303,7 +320,13 @@ function completeRegistration(bizName, ownerName, email, password, plan) {
     },
   }));
   currentUser = getStore().currentUser;
-  ["reg-biz", "reg-owner", "reg-email", "reg-password"].forEach((id) => {
+  [
+    "reg-biz",
+    "reg-owner",
+    "reg-email",
+    "reg-password",
+    "reg-password-confirm",
+  ].forEach((id) => {
     const el = document.getElementById(id);
     if (el) {
       el.value = "";
@@ -336,7 +359,13 @@ function completeUpgrade(plan) {
 }
 
 (function attachFormAbandonWarning() {
-  const regFields = ["reg-biz", "reg-owner", "reg-email", "reg-password"];
+  const regFields = [
+    "reg-biz",
+    "reg-owner",
+    "reg-email",
+    "reg-password",
+    "reg-password-confirm",
+  ];
   function hasAnyInput() {
     return regFields.some((id) => {
       const el = document.getElementById(id);

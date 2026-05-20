@@ -1,18 +1,18 @@
 // ============================================================
 // auth.js - SaleStation
 // Authentication: login, register, forgot password.
-// Loaded by: auth.html ONLY.
+// Loaded by: index.html ONLY.
 // simulatePaystack, completeRenew, completeUpgrade,
 // showLoginSubscriptionModal, selectLoginPlan, selectRenewPlan,
 // and all plan-change state now live in shared.js so they are
 // available to admin.html and cashier.html too.
 // ============================================================
 
-// selectedPlan is auth.html-only: tracks the plan chosen on the
+// selectedPlan is index.html-only: tracks the plan chosen on the
 // registration step-2 card. (Not needed on app pages.)
 let selectedPlan = "starter";
 
-// showPage is only used on auth.html (single-page auth flow).
+// showPage is only used on index.html (single-page auth flow).
 function showPage(id) {
   document
     .querySelectorAll("#auth-container > div")
@@ -24,7 +24,8 @@ function updatePlanPriceDisplay() {
   const trialEl = document.getElementById("plan-price-trial");
   const starterEl = document.getElementById("plan-price-starter");
   const premiumEl = document.getElementById("plan-price-premium");
-  if (trialEl) trialEl.innerHTML = `R0<span>/7 days</span>`;
+  if (trialEl)
+    trialEl.innerHTML = `R0<span>/${PLAN_LIMITS.trial.durationDays} days</span>`;
   if (starterEl)
     starterEl.innerHTML = `R${PLAN_LIMITS.starter.price}<span>/mo</span>`;
   if (premiumEl)
@@ -343,9 +344,9 @@ function completeRegistration(bizName, ownerName, email, password, plan) {
 }
 
 // completeRenew and completeUpgrade are defined in admin.js (they need
-// currentUser.businessId). On auth.html they are only reached via
+// currentUser.businessId). On index.html they are only reached via
 // showLoginSubscriptionModal which sets completeRenewOverride to handle
-// the logic inline, so completeRenew is never directly called on auth.html.
+// the logic inline, so completeRenew is never directly called on index.html.
 // Provide safe stubs so shared.js simulatePaystack callback doesn't throw.
 function completeRenew(plan) {
   if (completeRenewOverride) {
@@ -355,7 +356,7 @@ function completeRenew(plan) {
   }
 }
 function completeUpgrade(plan) {
-  // Not used on auth.html - stub for safety.
+  // Not used on index.html - stub for safety.
 }
 
 (function attachFormAbandonWarning() {
@@ -446,11 +447,11 @@ function completeUpgrade(plan) {
 
 function redirectToRolePage() {
   if (!currentUser) {
-    window.location.href = "auth.html";
+    window.location.replace("index.html");
     return;
   }
   const role = currentUser.role;
-  if (role === "super-admin") window.location.href = "super-admin.html";
-  else if (role === "cashier") window.location.href = "cashier.html";
-  else window.location.href = "admin.html";
+  if (role === "super-admin") window.location.replace("super-admin.html");
+  else if (role === "cashier") window.location.replace("cashier.html");
+  else window.location.replace("admin.html");
 }

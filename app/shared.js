@@ -1,7 +1,7 @@
 // ============================================================
 // shared.js - SaleStation
 // Core utilities, storage, auth state, app shell, icons.
-// Loaded by: auth.html, super-admin.html, admin.html, cashier.html
+// Loaded by: index.html, super-admin.html, admin.html, cashier.html
 // ============================================================
 
 // ============================================================
@@ -55,9 +55,11 @@ const PLAN_LIMITS = {
       "Max 1 Cashier",
       "Max 15 Items",
       "Full POS Checkout",
+      "Cash & Card Payments",
       "Transaction Receipts",
+      "Basic Inventory Management",
       "Contact Support",
-      "No statement downloads",
+      "No statement exports",
       "No grace period",
     ],
   },
@@ -73,8 +75,11 @@ const PLAN_LIMITS = {
       "Max 2 Cashiers",
       "Max 50 Items",
       "Full POS Checkout",
+      "Cash & Card Payments",
       "Transaction Receipts",
-      "Weekly Statement Export",
+      "Inventory Management & Stock Tracking",
+      "Weekly Statement Export (CSV/Excel)",
+      "Discount & Promo Support",
       "2-day grace period",
       "Contact Support",
     ],
@@ -91,12 +96,15 @@ const PLAN_LIMITS = {
       "Unlimited Cashiers",
       "Unlimited Items",
       "Full POS Checkout",
+      "Cash & Card Payments",
       "Transaction Receipts",
-      "Multi-Store (up to 3 locations)",
+      "Advanced Inventory & Stock Alerts",
+      "Multi-Store Management (up to 3 locations)",
       "Audit Action Logs",
       "Weekly, Monthly & Yearly Exports",
+      "Discount & Promo Support",
       "2-day grace period",
-      "Contact Support",
+      "Priority Support",
     ],
   },
 };
@@ -321,7 +329,7 @@ function applyScheduledUpgrades() {
 // ============================================================
 // PAYMENT / SUBSCRIPTION COMPLETION
 // All Paystack and plan-change functions live here so they are
-// available to admin.html, cashier.html, and auth.html alike.
+// available to admin.html, cashier.html, and index.html alike.
 // (Fixes issues #3-#7: ReferenceErrors from missing functions)
 // ============================================================
 
@@ -582,7 +590,7 @@ function showLoginSubscriptionModal(user, biz) {
   };
 }
 
-// completeRegistration is defined in auth.js (auth.html only).
+// completeRegistration is defined in auth.js (index.html only).
 // completeRenew and completeUpgrade are defined in admin.js but shared.js
 // provides the stubs so cashier.html can also call completeRenew if needed.
 
@@ -1296,7 +1304,7 @@ function performLogout() {
   updateStore((d) => ({ ...d, currentUser: null }));
   currentUser = null;
   activeTab = "";
-  window.location.href = "auth.html";
+  window.location.replace("index.html");
 }
 function handleLogout() {
   confirm2("Log Out", "Are you sure you want to log out?", {
@@ -1858,9 +1866,6 @@ function handlePOSCheckout() {
               )}</span></div>`
           )
           .join("")}
-        <div style="display:flex;justify-content:space-between;padding-top:8px;border-top:1px solid var(--gray-200);font-weight:700"><span>Subtotal</span><span class="text-mono" id="modal-subtotal">${formatCurrency(
-          subtotal
-        )}</span></div>
       </div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
         <label style="font-size:12px;color:var(--gray-500);white-space:nowrap;font-family:var(--font-mono);font-weight:600;text-transform:uppercase;letter-spacing:.06em">Discount</label>

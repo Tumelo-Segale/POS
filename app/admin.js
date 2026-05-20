@@ -1067,7 +1067,6 @@ function renderTransactions(area) {
     const d = new Date(t.createdAt);
     if (txnFilterPeriod === "today") return localDateStr(d) === today;
     if (txnFilterPeriod === "week") {
-      // Fix #31: "week" filter in Transactions uses rolling 7 days, matching the
       // downloadStatement("weekly") definition for consistency.
       const w = new Date(now);
       w.setDate(now.getDate() - 6);
@@ -1333,7 +1332,6 @@ function downloadStatement(period) {
     (t) => t.businessId === currentUser.businessId
   );
   const now = new Date();
-  // Fix #31: "weekly" statement uses same rolling-7-days window as the Transactions
   // "Last 7 Days" filter so the two are fully consistent.
   const filtered = txns.filter((t) => {
     const d = new Date(t.createdAt);
@@ -1421,10 +1419,6 @@ function renderSubscriptions(area) {
       ? `<div style="font-size:11px;color:var(--blue);margin-top:4px">Your bank converts this from ZAR to ${biz.currency} at the prevailing exchange rate.</div>`
       : "";
   const daysLeft = st?.daysLeft || 0;
-  const proratedNote =
-    daysLeft > 0 && biz.plan !== "premium"
-      ? `(~${daysLeft} days remaining on current plan - prorated)`
-      : "";
   let badgeClass = "badge-gray";
   if (st?.status === "active") badgeClass = "badge-green";
   else if (st?.status === "grace") badgeClass = "badge-orange";
@@ -1432,8 +1426,6 @@ function renderSubscriptions(area) {
   else if (st?.status === "cancelled-expired" || st?.status === "expired")
     badgeClass = "badge-red";
   if (biz.plan === "trial") badgeClass = "badge-accent";
-
-  // Fix #1/#12: use RENEWAL_WINDOW_DAYS (=2) as the single gate for all renewal UI
   const renewalOpen = daysLeft <= RENEWAL_WINDOW_DAYS;
 
   area.innerHTML = `
@@ -1561,13 +1553,10 @@ function renderSubscriptions(area) {
             biz.plan !== "trial" &&
             st?.active &&
             sub.status !== "cancelled" &&
-            !renewalOpen
-              ? `<span style="font-size:11px;color:var(--gray-500);font-family:var(--font-mono)">Renewal opens in the last ${RENEWAL_WINDOW_DAYS} days of your billing period.</span>`
-              : ""
-          }
-          ${
-            proratedNote
-              ? `<span style="font-size:11px;color:var(--gray-400);font-family:var(--font-mono)">${proratedNote}</span>`
+            !renewalOpen &&
+            typeof daysLeft === "number" &&
+            daysLeft > 0
+              ? `<span style="font-size:11px;color:var(--gray-500);font-family:var(--font-mono)">Renewal available in the last ${RENEWAL_WINDOW_DAYS} days — ${daysLeft} day(s) remaining.</span>`
               : ""
           }
         </div>
@@ -1586,26 +1575,8 @@ function handleUpgrade(targetPlan) {
   const sub = store.subscriptions.find(
     (s) => s.businessId === currentUser.businessId
   );
-  // Fix #1: use RENEWAL_WINDOW_DAYS consistently
-  if (biz.plan !== "trial" && sub && sub.status !== "cancelled") {
-    const st = getSubStatus(biz.id);
-    const daysLeft = st?.daysLeft || 0;
-    const planOrder = { trial: 0, starter: 1, premium: 2 };
-    const isDowngrade =
-      (planOrder[targetPlan] ?? 0) < (planOrder[biz.plan] ?? 0);
-    if (
-      !isDowngrade &&
-      daysLeft > RENEWAL_WINDOW_DAYS &&
-      st?.active &&
-      !st?.inGrace
-    ) {
-      toast(
-        `Plan changes are only available in the last ${RENEWAL_WINDOW_DAYS} days of your subscription.`,
-        "error"
-      );
-      return;
-    }
-  }
+  // Upgrades (higher plan) are allowed anytime.
+  // Renewals (same/lower plan) are gated to the last RENEWAL_WINDOW_DAYS.
   const planOrder = { trial: 0, starter: 1, premium: 2 };
   if ((planOrder[targetPlan] ?? 0) < (planOrder[biz.plan] ?? 0)) {
     const removedFeatures = [];
@@ -1655,21 +1626,13 @@ function handleUpgrade(targetPlan) {
 
 function completeUpgrade(targetPlan) {
   const store = getStore();
-  const existingSub = store.subscriptions.find(
-    (s) => s.businessId === currentUser.businessId
-  );
   const dur = PLAN_LIMITS[targetPlan]?.durationDays || 30;
   const processDay = new Date();
   processDay.setHours(0, 0, 0, 0);
-  let newExpiry;
-  if (existingSub && existingSub.status === "active" && existingSub.expiresAt) {
-    const remaining = new Date(existingSub.expiresAt) - new Date();
-    newExpiry = new Date(
-      processDay.getTime() + dur * 86400000 + Math.max(0, remaining)
-    ).toISOString();
-  } else {
-    newExpiry = new Date(processDay.getTime() + dur * 86400000).toISOString();
-  }
+  // No proration: new billing cycle always starts fresh from today.
+  const newExpiry = new Date(
+    processDay.getTime() + dur * 86400000
+  ).toISOString();
   updateStore((d) => ({
     ...d,
     businesses: d.businesses.map((b) =>
@@ -1713,7 +1676,7 @@ function completeUpgrade(targetPlan) {
     overLimitWarnings.forEach((w) => toast(`Over limit: ${w}`, "error"));
   else
     toast(
-      `Plan changed to ${PLAN_LIMITS[targetPlan]?.label}! Remaining days from current cycle credited.`,
+      `Plan upgraded to ${PLAN_LIMITS[targetPlan]?.label}! Your new billing cycle starts now.`,
       "success"
     );
   buildSidebar();
@@ -1741,7 +1704,6 @@ function completeRenew(newPlan) {
   const processDay = new Date();
   processDay.setHours(0, 0, 0, 0);
   let newExpiry;
-  // Fix #9: Only carry remaining time when actively subscribed (not trial, not expired/cancelled).
   // Cancelled-but-active subs carry time; expired subs start fresh.
   if (
     !isTrial &&

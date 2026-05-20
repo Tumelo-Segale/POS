@@ -6,15 +6,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SaleStation - Login</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="dns-prefetch" href="https://js.paystack.co" />
     <link
         href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap"
         rel="stylesheet" />
     <link rel="shortcut icon" href="../assets/icon.ico" type="image/x-icon">
     <!-- Paystack Inline JS - required for registration payment flow -->
     <script src="https://js.paystack.co/v1/inline.js"></script>
-    <!-- Fix #15: Removed unnecessary SheetJS (~1MB) - auth page never generates Excel files -->
     <link rel="stylesheet" href="shared.css" />
-    <!-- Fix #17: Added body visibility hidden to prevent FOUC, matching admin/cashier/super-admin -->
     <style>
         body {
             visibility: hidden;
@@ -151,8 +150,6 @@
         </div>
 
         <!-- REGISTER STEP 2 – Plan -->
-        <!-- Fix #24/#25: Plan cards now driven by PLAN_LIMITS.features via JS (updatePlanPriceDisplay)
-             so they stay in sync with the single source of truth in shared.js. -->
         <div id="register-plan-page" class="auth-card hidden">
             <div style="margin-bottom:16px">
                 <a href="../index.html"
@@ -218,7 +215,7 @@
     <script src="shared.js"></script>
     <script src="auth.js"></script>
     <script>
-        // Render plan cards from PLAN_LIMITS so auth.html stays in sync
+        // Render plan cards from PLAN_LIMITS so index.html stays in sync
         // with shared.js (fixes issues #24 and #25).
         (function renderPlanCards() {
             const featureList = (plan) =>
@@ -227,7 +224,7 @@
                 <div id="plan-trial" class="plan-card" onclick="selectPlan('trial')">
                     <div class="plan-card-header">
                         <span class="plan-name">Trial <span class="plan-badge-tag trial-badge">7-Day Free</span></span>
-                        <span class="plan-price" id="plan-price-trial">R0<span>/7 days</span></span>
+                        <span class="plan-price" id="plan-price-trial">R0<span>/${PLAN_LIMITS.trial.durationDays} days</span></span>
                     </div>
                     <ul class="plan-features">${featureList("trial")}</ul>
                 </div>

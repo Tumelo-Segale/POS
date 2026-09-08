@@ -125,6 +125,7 @@ const initialData = {
   transactions: [],
   messages: [],
   subscriptions: [],
+  payments: [],
   locations: [],
   auditLogs: [],
   currentUser: null,
@@ -145,6 +146,7 @@ function getStore() {
     const s = JSON.parse(d);
     if (!s.locations) s.locations = [];
     if (!s.auditLogs) s.auditLogs = [];
+    if (!s.payments) s.payments = [];
     if (s.items) s.items = s.items.map((i) => ({ stock: null, ...i }));
     if (s.transactions)
       s.transactions = s.transactions.map((t) =>
@@ -1033,6 +1035,7 @@ const NAV_ITEMS = {
   "super-admin": [
     { id: "dashboard", label: "Dashboard", icon: "dashboard" },
     { id: "businesses", label: "Businesses", icon: "store" },
+    { id: "payments", label: "Payments", icon: "credit" },
     { id: "messages", label: "Messages", icon: "message" },
     { id: "settings", label: "Settings", icon: "settings" },
   ],
@@ -1244,6 +1247,7 @@ function renderContent(tab) {
   if (currentUser.role === "super-admin") {
     if (tab === "dashboard") return renderSuperDashboard(area);
     if (tab === "businesses") return renderBusinesses(area);
+    if (tab === "payments") return renderPayments(area);
     if (tab === "messages") return renderMessages(area);
     if (tab === "settings") return renderSettings(area);
   }
@@ -1282,6 +1286,80 @@ function closeModal(e) {
     document.getElementById("modal-overlay").classList.remove("open");
     document.getElementById("modal-overlay").onclick = closeModal;
   }
+}
+
+// ============================================================
+// PRIVACY POLICY MODAL
+// Shared between the registration flow and any other app page
+// that links to the Privacy Policy. Uses the generic openModal()
+// popup (with its built-in close button) declared above.
+// ============================================================
+const PRIVACY_POLICY_HTML = `
+  <div style="font-size:13px;color:var(--gray-600);line-height:1.7">
+    <h4 style="font-family:var(--font-mono);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--black);margin-bottom:8px">1. Introduction</h4>
+    <p style="margin-bottom:12px">This Privacy Policy explains how SaleStation ("we", "us", "the Platform") collects, uses, stores, and protects the information of businesses, cashiers, and visitors who use our Point of Sale system. By using SaleStation, you consent to the practices described in this Policy.</p>
+
+    <h4 style="font-family:var(--font-mono);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--black);margin-bottom:8px">2. Information We Collect</h4>
+    <p style="margin-bottom:12px">We collect information you provide directly, such as business name, owner name, email address, password (stored securely), business type, country and currency, and inventory, sales, and cashier data you enter into the Platform. We also process billing information via our payment processor for subscription payments.</p>
+
+    <h4 style="font-family:var(--font-mono);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--black);margin-bottom:8px">3. How We Use Your Information</h4>
+    <ul style="margin:0 0 12px 16px">
+      <li>To create and manage your business account and user roles</li>
+      <li>To operate core POS functionality - sales, inventory, receipts, and reporting</li>
+      <li>To process subscription payments and manage billing cycles</li>
+      <li>To communicate important account, billing, or security notices</li>
+      <li>To improve the reliability, security, and performance of the Platform</li>
+    </ul>
+
+    <h4 style="font-family:var(--font-mono);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--black);margin-bottom:8px">4. Data Storage & Security</h4>
+    <p style="margin-bottom:12px">Your data is stored securely and protected using industry-standard safeguards. Access to business data is restricted to authorized users within your business account based on role (super-admin, admin, cashier).</p>
+
+    <h4 style="font-family:var(--font-mono);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--black);margin-bottom:8px">5. Data Sharing</h4>
+    <p style="margin-bottom:12px">We do not sell your personal or business data to third parties. Data may be shared only with service providers strictly necessary to operate the Platform (such as our payment processor, Paystack, for subscription billing), or where required by law.</p>
+
+    <h4 style="font-family:var(--font-mono);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--black);margin-bottom:8px">6. Your Rights (POPIA)</h4>
+    <p style="margin-bottom:12px">In accordance with the Protection of Personal Information Act (POPIA) of South Africa and similar regional data protection laws, you have the right to access, correct, or request deletion of your personal information, and to withdraw consent for its processing at any time, subject to our legal and operational requirements.</p>
+
+    <h4 style="font-family:var(--font-mono);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--black);margin-bottom:8px">7. Data Retention</h4>
+    <p style="margin-bottom:12px">We retain your business data for as long as your account remains active, or as needed to comply with legal obligations. If you delete your business account, associated cashier accounts, inventory, transactions, and subscription data are permanently removed.</p>
+
+    <h4 style="font-family:var(--font-mono);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--black);margin-bottom:8px">8. Cookies & Local Storage</h4>
+    <p style="margin-bottom:12px">SaleStation uses local browser storage to keep you logged in and to maintain application state. We do not use third-party advertising cookies or trackers.</p>
+
+    <h4 style="font-family:var(--font-mono);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--black);margin-bottom:8px">9. Changes to This Policy</h4>
+    <p style="margin-bottom:12px">We may update this Privacy Policy from time to time. Material changes will be communicated to registered users via email or in-app notification. Continued use of the Platform after changes constitutes acceptance of the updated Policy.</p>
+
+    <p style="margin-top:16px;font-size:12px;color:var(--gray-400)">Last updated: September 2026</p>
+  </div>
+`;
+
+function openPrivacyPolicyModal() {
+  openModal("Privacy Policy", PRIVACY_POLICY_HTML);
+}
+
+// ============================================================
+// PAYMENT HISTORY (Subscription Payments)
+// Logs every subscription payment event (new registration,
+// renewal, upgrade) so Super Admin can see a full history of
+// payments made by each business, independent of the single
+// mutable `subscriptions` record used for the active plan.
+// ============================================================
+function addPaymentRecord(businessId, businessName, email, plan, amount, type) {
+  const record = {
+    id: `pay-${uid()}`,
+    businessId,
+    businessName,
+    email,
+    plan,
+    amount,
+    type: type || "payment", // "registration" | "renewal" | "upgrade"
+    date: new Date().toISOString(),
+  };
+  updateStore((d) => ({
+    ...d,
+    payments: [...(d.payments || []), record],
+  }));
+  return record;
 }
 
 // ============================================================
@@ -1335,191 +1413,7 @@ function localDateStr(d) {
 // ============================================================
 // SHARED: INVENTORY (read/write for admin, read-only for cashier)
 // ============================================================
-function renderInvStockCell(item) {
-  if (item.stock === null || item.stock === undefined)
-    return '<span class="text-muted">-</span>';
-  if (item.stock === 0)
-    return `<span class="badge badge-red" style="font-family:var(--font-mono);font-size:11px">0</span>`;
-  if (item.stock <= 5)
-    return `<span style="color:var(--accent);font-weight:700">${item.stock}</span>`;
-  return `<span>${item.stock}</span>`;
-}
-
-function renderInvRow(item, isRestaurant, showLocCol, locations) {
-  const catLabels = { meals: "Meals", drinks: "Drinks", others: "Others" };
-  const catCell = isRestaurant
-    ? `<td><span class="badge badge-gray">${
-        catLabels[item.category] || item.category || "-"
-      }</span></td>`
-    : "";
-  const locCell = showLocCol
-    ? `<td class="text-muted text-sm">${sanitize(
-        locations?.find((l) => l.id === item.locationId)?.name ||
-          (item.locationId ? "Unknown" : "Shared")
-      )}</td>`
-    : "";
-  const isAdmin = currentUser.role === "admin";
-  const actionCell = isAdmin
-    ? `<td><div class="td-actions">
-    <button class="btn btn-sm btn-outline" onclick="openItemModal('${
-      item.id
-    }')">${Icon.edit}</button>
-    <button class="btn btn-sm ${
-      item.status === "active" ? "btn-outline" : "btn-outline"
-    }" onclick="toggleItemStatus('${item.id}')" title="${
-        item.status === "active" ? "Deactivate" : "Activate"
-      }">${item.status === "active" ? "Deactivate" : "Activate"}</button>
-    <button class="btn btn-sm btn-danger-outline" onclick="deleteItem('${
-      item.id
-    }')">${Icon.trash}</button>
-  </div></td>`
-    : "";
-  return `<tr>
-    <td><strong>${sanitize(item.name)}</strong></td>
-    ${catCell}
-    <td class="text-mono">${formatCurrency(item.price)}</td>
-    <td class="text-mono">${renderInvStockCell(item)}</td>
-    <td><span class="badge ${
-      item.status === "active" ? "badge-green" : "badge-red"
-    }">${item.status}</span></td>
-    ${locCell}
-    ${actionCell}
-  </tr>`;
-}
-
-function renderItems(area) {
-  const store = getStore();
-  const biz = store.businesses.find((b) => b.id === currentUser.businessId);
-  const plan = biz?.plan || "starter";
-  const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.starter;
-  const isRestaurant = biz?.businessType === "restaurant";
-  const isAdmin = currentUser.role === "admin";
-  const cashierLocationId = currentUser.locationId || "";
-  const locations = store.locations.filter(
-    (l) => l.businessId === currentUser.businessId
-  );
-  const hasLocations = locations.length > 0;
-  const allBizItems = store.items.filter(
-    (i) => i.businessId === currentUser.businessId
-  );
-  const items = !hasLocations
-    ? allBizItems
-    : allBizItems.filter((i) => {
-        const shared = !i.locationId;
-        if (cashierLocationId)
-          return shared || i.locationId === cashierLocationId;
-        return isAdmin || shared;
-      });
-  const activeItemCount = items.filter((i) => i.status === "active").length;
-  const showLocCol = isAdmin && hasLocations;
-  const catFilterHTML =
-    isRestaurant && isAdmin
-      ? `<select id="inv-cat-filter" class="form-select" style="height:34px;width:130px" onchange="filterInventoryItems()"><option value="all">All Categories</option><option value="meals">Meals</option><option value="drinks">Drinks</option><option value="others">Others</option></select>`
-      : "";
-  const locBadge =
-    !isAdmin && hasLocations && cashierLocationId
-      ? `<span style="font-size:12px;color:var(--gray-500);font-family:var(--font-mono);margin-left:8px">${sanitize(
-          locations.find((l) => l.id === cashierLocationId)?.name || ""
-        )}</span>`
-      : "";
-  const colCount =
-    (isRestaurant ? 1 : 0) + (showLocCol ? 1 : 0) + (isAdmin ? 1 : 0) + 4;
-  area.innerHTML = `
-  <div class="page-header">
-    <h2 class="page-title">Items <span style="font-size:13px;color:var(--gray-400);font-weight:400;font-family:var(--font-main)">${activeItemCount}${
-    limits.items !== Infinity ? " / " + limits.items : ""
-  } active${locBadge}</span></h2>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <div class="search-box"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--gray-400)"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="inv-search" type="text" placeholder="Search items..." style="padding-left:30px;height:34px" oninput="filterInventoryItems()"/></div>
-      ${catFilterHTML}
-      <select id="inv-status-filter" class="form-select" style="height:34px;width:140px" onchange="filterInventoryItems()"><option value="all">All</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="out-of-stock">Out of Stock</option></select>
-      ${
-        isAdmin
-          ? `<button class="btn btn-primary" onclick="openItemModal(null)">${Icon.plus} Add Item</button>`
-          : ""
-      }
-    </div>
-  </div>
-  <div class="card"><div class="table-wrapper"><table>
-    <thead><tr>
-      <th>Item Name</th>${isRestaurant ? "<th>Category</th>" : ""}
-      <th>Price</th><th>Stock</th><th>Status</th>
-      ${showLocCol ? "<th>Location</th>" : ""}
-      ${isAdmin ? "<th></th>" : ""}
-    </tr></thead>
-    <tbody id="inv-table-body">
-      ${
-        items.length === 0
-          ? `<tr><td colspan="${colCount}"><div class="empty-state">${
-              hasLocations && cashierLocationId
-                ? "No items for your location yet."
-                : "No items in inventory."
-            }</div></td></tr>`
-          : items
-              .map((item) =>
-                renderInvRow(item, isRestaurant, showLocCol, locations)
-              )
-              .join("")
-      }
-    </tbody>
-  </table></div></div>`;
-}
-
 let _invFilterTimer = null;
-function filterInventoryItems() {
-  clearTimeout(_invFilterTimer);
-  _invFilterTimer = setTimeout(_doFilterInventory, 120);
-}
-function _doFilterInventory() {
-  const q = (document.getElementById("inv-search")?.value || "").toLowerCase();
-  const statusFilter =
-    document.getElementById("inv-status-filter")?.value || "all";
-  const catFilter = document.getElementById("inv-cat-filter")?.value || "all";
-  const store = getStore();
-  const biz = store.businesses.find((b) => b.id === currentUser.businessId);
-  const isRestaurant = biz?.businessType === "restaurant";
-  const isAdmin = currentUser.role === "admin";
-  const cashierLocationId = currentUser.locationId || "";
-  const locations = store.locations.filter(
-    (l) => l.businessId === currentUser.businessId
-  );
-  const hasLocations = locations.length > 0;
-  const showLocCol = isAdmin && hasLocations;
-  const allBizItems = store.items.filter(
-    (i) => i.businessId === currentUser.businessId
-  );
-  const items = !hasLocations
-    ? allBizItems
-    : allBizItems.filter((i) => {
-        const shared = !i.locationId;
-        if (cashierLocationId)
-          return shared || i.locationId === cashierLocationId;
-        return isAdmin || shared;
-      });
-  const filtered = items.filter((i) => {
-    const matchName = i.name.toLowerCase().includes(q);
-    let matchStatus;
-    if (statusFilter === "out-of-stock")
-      matchStatus = i.stock !== null && i.stock !== undefined && i.stock === 0;
-    else matchStatus = statusFilter === "all" || i.status === statusFilter;
-    const matchCat =
-      !isRestaurant || catFilter === "all" || i.category === catFilter;
-    return matchName && matchStatus && matchCat;
-  });
-  const tbody = document.getElementById("inv-table-body");
-  if (!tbody) return;
-  const colCount =
-    (isRestaurant ? 1 : 0) + (showLocCol ? 1 : 0) + (isAdmin ? 1 : 0) + 4;
-  tbody.innerHTML =
-    filtered.length === 0
-      ? `<tr><td colspan="${colCount}"><div class="empty-state">No items match your search.</div></td></tr>`
-      : filtered
-          .map((item) =>
-            renderInvRow(item, isRestaurant, showLocCol, locations)
-          )
-          .join("");
-}
-
 // ============================================================
 // SHARED: POS
 // ============================================================
@@ -1534,635 +1428,9 @@ let posPayMethod = (() => {
 let _posItems = [];
 let _posActiveCat = "all";
 
-function refreshPOSItemCache() {
-  _posItems = getStore().items.filter(
-    (i) => i.businessId === currentUser.businessId && i.status === "active"
-  );
-}
-
-function refreshPOSItemsOnly() {
-  if (activeTab !== "pos") return;
-  refreshPOSItemCache();
-  const q = (
-    document.getElementById("pos-search-input")?.value || ""
-  ).toLowerCase();
-  const store = getStore();
-  const biz = store.businesses.find((b) => b.id === currentUser.businessId);
-  const isRestaurant = biz?.businessType === "restaurant";
-  let filtered = _posItems.filter((i) => i.name.toLowerCase().includes(q));
-  if (isRestaurant && _posActiveCat !== "all")
-    filtered = filtered.filter((i) => i.category === _posActiveCat);
-  const grid = document.getElementById("pos-items-grid");
-  if (grid) grid.innerHTML = renderPOSItemsHTML(filtered);
-}
-
-function renderPOS(area) {
-  refreshPOSItemCache();
-  const store = getStore();
-  const biz = store.businesses.find((b) => b.id === currentUser.businessId);
-  const isRestaurant = biz?.businessType === "restaurant";
-  area.style.padding = "0";
-  area.style.overflow = "hidden";
-  const sym = getCurrencySymbol();
-  // Category label map for display
-  const CAT_LABELS = {
-    all: "All",
-    meals: "Meals",
-    drinks: "Drinks",
-    others: "Others",
-  };
-  const catTabs = isRestaurant
-    ? `
-    <div class="pos-cat-tabs">
-      ${["all", "meals", "drinks", "others"]
-        .map(
-          (c) =>
-            `<button class="btn btn-sm pos-cat-btn${
-              _posActiveCat === c ? " active-cat" : " btn-outline"
-            }" data-cat="${c}" onclick="setPOSCat('${c}')">${
-              CAT_LABELS[c]
-            }</button>`
-        )
-        .join("")}
-    </div>`
-    : "";
-  area.innerHTML = `
-<div class="pos-layout">
-  <div class="pos-items-panel">
-    ${catTabs}
-    <div class="pos-search">
-      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input id="pos-search-input" type="text" placeholder="Search items…" oninput="filterPOSItems()" autocomplete="off"/>
-    </div>
-    <div class="pos-items-grid" id="pos-items-grid">
-      ${renderPOSItemsHTML(_posItems)}
-    </div>
-  </div>
-  <div class="pos-cart" id="pos-cart-panel">
-    <div class="pos-cart-header">${Icon.cart} Cart
-      <div class="pos-cart-header-right">
-        <span id="pos-cart-count" style="font-size:11px;color:var(--gray-400)"></span>
-        <button class="pos-cart-close-btn" onclick="toggleMobileCart(false)" aria-label="Close cart">${
-          Icon.close || "&times;"
-        }</button>
-      </div>
-    </div>
-    <div class="pos-cart-items" id="pos-cart-items"></div>
-    <div class="pos-cart-footer">
-      <div class="total-row"><span class="total-label">Subtotal</span><span class="total-amount text-mono" id="pos-subtotal">${sym}0.00</span></div>
-      <div class="total-row" style="border-top:2px solid var(--black);padding-top:10px;margin-top:4px">
-        <span class="grand-total-label">Total</span>
-        <span class="grand-total-amount" id="pos-total">${sym}0.00</span>
-      </div>
-      <div class="payment-toggle">
-        <button class="pay-btn${
-          posPayMethod === "cash" ? " active" : ""
-        }" id="pay-btn-cash" onclick="setPayMethod('cash')">Cash</button>
-        <button class="pay-btn${
-          posPayMethod === "card" ? " active" : ""
-        }" id="pay-btn-card" onclick="setPayMethod('card')">Card</button>
-      </div>
-      <button class="btn btn-primary btn-full btn-lg" onclick="handlePOSCheckout()">${
-        Icon.cart
-      } Checkout</button>
-    </div>
-  </div>
-  <div class="pos-cart-backdrop" id="pos-cart-backdrop" onclick="toggleMobileCart(false)"></div>
-  <button class="pos-cart-fab" id="pos-cart-fab" onclick="toggleMobileCart(true)" aria-label="View cart">
-    ${Icon.cart}
-    <span class="pos-cart-fab-badge" id="pos-cart-fab-badge"></span>
-  </button>
-</div>`;
-  updateCartUI();
-}
-
 // Show/hide the cart as a full-screen overlay on mobile. If `show` is
 // omitted, the current state is toggled.
-function toggleMobileCart(show) {
-  const cart = document.getElementById("pos-cart-panel");
-  const backdrop = document.getElementById("pos-cart-backdrop");
-  if (!cart) return;
-  const shouldShow =
-    typeof show === "boolean" ? show : !cart.classList.contains("mobile-open");
-  cart.classList.toggle("mobile-open", shouldShow);
-  if (backdrop) backdrop.classList.toggle("mobile-open", shouldShow);
-}
-
-function renderPOSItemsHTML(items) {
-  if (items.length === 0)
-    return `<div style="grid-column:1/-1;text-align:center;padding:40px 20px;color:var(--gray-400);font-size:13px">No items found.</div>`;
-  return items
-    .map((item) => {
-      const outOfStock =
-        item.stock !== null && item.stock !== undefined && item.stock === 0;
-      const lowStock =
-        !outOfStock &&
-        item.stock !== null &&
-        item.stock !== undefined &&
-        item.stock <= 5;
-      const cartLine = posCart.find((c) => c.id === item.id);
-      const qty = cartLine ? cartLine.quantity : 0;
-      // Use proper CSS classes: pos-item-btn (has border), pos-item-btn.pos-item-out-of-stock (greyed), pos-item-btn.pos-item-low-stock (amber)
-      let cls = "pos-item-btn";
-      if (outOfStock) cls += " pos-item-out-of-stock";
-      else if (lowStock) cls += " pos-item-low-stock";
-      return `<button class="${cls}" data-id="${
-        item.id
-      }" onclick="addToCartById(this)" ${
-        outOfStock ? 'disabled aria-disabled="true"' : ""
-      } type="button">
-      <span class="pos-item-name">${sanitize(item.name)}</span>
-      <span class="pos-item-price">${formatCurrency(item.price)}</span>
-    </button>`;
-    })
-    .join("");
-}
-
 let _posFilterTimer = null;
-function filterPOSItems() {
-  clearTimeout(_posFilterTimer);
-  _posFilterTimer = setTimeout(_doFilterPOS, 80);
-}
-function _doFilterPOS() {
-  const q = (
-    document.getElementById("pos-search-input")?.value || ""
-  ).toLowerCase();
-  const store = getStore();
-  const biz = store.businesses.find((b) => b.id === currentUser.businessId);
-  const isRestaurant = biz?.businessType === "restaurant";
-  let filtered = _posItems.filter((i) => i.name.toLowerCase().includes(q));
-  if (isRestaurant && _posActiveCat !== "all")
-    filtered = filtered.filter((i) => i.category === _posActiveCat);
-  const grid = document.getElementById("pos-items-grid");
-  if (grid) grid.innerHTML = renderPOSItemsHTML(filtered);
-}
-
-function setPOSCat(cat) {
-  _posActiveCat = cat;
-  // Update only the tab button states — no full POS re-render
-  document.querySelectorAll(".pos-cat-btn").forEach((btn) => {
-    const isActive = btn.dataset.cat === cat;
-    btn.className =
-      "btn btn-sm pos-cat-btn" + (isActive ? " active-cat" : " btn-outline");
-  });
-  // Update only the items grid
-  const q = (
-    document.getElementById("pos-search-input")?.value || ""
-  ).toLowerCase();
-  const store = getStore();
-  const biz = store.businesses.find((b) => b.id === currentUser.businessId);
-  const isRestaurant = biz?.businessType === "restaurant";
-  let filtered = _posItems.filter((i) => i.name.toLowerCase().includes(q));
-  if (isRestaurant && cat !== "all")
-    filtered = filtered.filter((i) => i.category === cat);
-  const grid = document.getElementById("pos-items-grid");
-  if (grid) grid.innerHTML = renderPOSItemsHTML(filtered);
-}
-
-function setPayMethod(method) {
-  posPayMethod = method;
-  try {
-    localStorage.setItem("ss_pos_pay_method", method);
-  } catch (e) {}
-  // Toggle only the pay button states — no full POS re-render
-  const cashBtn = document.getElementById("pay-btn-cash");
-  const cardBtn = document.getElementById("pay-btn-card");
-  if (cashBtn)
-    cashBtn.className = "pay-btn" + (method === "cash" ? " active" : "");
-  if (cardBtn)
-    cardBtn.className = "pay-btn" + (method === "card" ? " active" : "");
-}
-
-function addToCartById(btn) {
-  const id = btn.dataset?.id || btn.getAttribute("data-id");
-  if (id) addToCart(id, btn);
-}
-
-function addToCart(id, sourceBtn) {
-  const store = getStore();
-  const item = store.items.find((i) => i.id === id);
-  if (!item || item.status !== "active") return;
-  if (item.stock !== null && item.stock !== undefined && item.stock === 0) {
-    toast("This item is out of stock", "error");
-    return;
-  }
-  const existing = posCart.find((c) => c.id === id);
-  if (existing) {
-    if (
-      item.stock !== null &&
-      item.stock !== undefined &&
-      existing.quantity >= item.stock
-    ) {
-      toast(`Only ${item.stock} in stock`, "error");
-      return;
-    }
-    existing.quantity++;
-  } else {
-    posCart.push({
-      id: item.id,
-      name: item.name,
-      price: item.price,
-      quantity: 1,
-    });
-  }
-  // Flash animation on the clicked button
-  if (sourceBtn) {
-    sourceBtn.classList.remove("flash");
-    void sourceBtn.offsetWidth; // force reflow to restart animation
-    sourceBtn.classList.add("flash");
-    setTimeout(() => sourceBtn.classList.remove("flash"), 400);
-  } else {
-    refreshPOSItemsOnly();
-  }
-  updateCartUI();
-}
-
-function changeQty(id, delta) {
-  const line = posCart.find((c) => c.id === id);
-  if (!line) return;
-  line.quantity += delta;
-  if (line.quantity <= 0) posCart = posCart.filter((c) => c.id !== id);
-  updateCartUI();
-  refreshPOSItemsOnly();
-}
-
-function removeFromCart(id) {
-  posCart = posCart.filter((c) => c.id !== id);
-  updateCartUI();
-  refreshPOSItemsOnly();
-}
-
-function updateCartUI() {
-  const cartEl = document.getElementById("pos-cart-items");
-  const subtotalEl = document.getElementById("pos-subtotal");
-  const totalEl = document.getElementById("pos-total");
-  const countEl = document.getElementById("pos-cart-count");
-  const fabBadge = document.getElementById("pos-cart-fab-badge");
-  if (!cartEl) return;
-  const subtotal = posCart.reduce((a, c) => a + c.price * c.quantity, 0);
-  const totalQty = posCart.reduce((a, c) => a + c.quantity, 0);
-  if (countEl)
-    countEl.textContent =
-      totalQty > 0 ? `${totalQty} item${totalQty === 1 ? "" : "s"}` : "";
-  if (fabBadge) {
-    if (totalQty > 0) {
-      fabBadge.textContent = totalQty > 99 ? "99+" : String(totalQty);
-      fabBadge.style.display = "flex";
-    } else {
-      fabBadge.textContent = "";
-      fabBadge.style.display = "none";
-    }
-  }
-  if (posCart.length === 0) {
-    cartEl.innerHTML = `<div class="cart-empty-state"><svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg><span>Cart is empty</span></div>`;
-  } else {
-    cartEl.innerHTML = posCart
-      .map(
-        (c) => `
-      <div class="pos-cart-item">
-        <div class="pos-cart-item-info">
-          <div class="pos-cart-item-name">${sanitize(c.name)}</div>
-          <div class="pos-cart-item-price">${formatCurrency(c.price)}</div>
-        </div>
-        <div class="qty-ctrl">
-          <button class="qty-btn" onclick="changeQty('${
-            c.id
-          }',-1)" aria-label="Decrease">−</button>
-          <span class="qty-num">${c.quantity}</span>
-          <button class="qty-btn" onclick="changeQty('${
-            c.id
-          }',1)" aria-label="Increase">+</button>
-        </div>
-        <button class="cart-remove-btn" onclick="removeFromCart('${
-          c.id
-        }')" aria-label="Remove">${Icon.trash}</button>
-      </div>`
-      )
-      .join("");
-  }
-  if (subtotalEl) subtotalEl.textContent = formatCurrency(subtotal);
-  if (totalEl) totalEl.textContent = formatCurrency(subtotal);
-}
-
-function handlePOSCheckout() {
-  if (!currentUser.businessId) return;
-  if (currentUser.role !== "super-admin") {
-    const active = enforceSubscription(currentUser.businessId);
-    if (!active) {
-      toast("Subscription expired. POS transactions are suspended.", "error");
-      navigate(currentUser.role === "cashier" ? "contact" : "subscriptions");
-      return;
-    }
-  }
-  if (posCart.length === 0) {
-    toast("Add items to the cart first", "error");
-    return;
-  }
-  const store = getStore();
-  const stockErrors = [];
-  for (const cartLine of posCart) {
-    const freshItem = store.items.find((i) => i.id === cartLine.id);
-    if (
-      freshItem &&
-      freshItem.stock !== null &&
-      freshItem.stock !== undefined &&
-      freshItem.stock < cartLine.quantity
-    ) {
-      stockErrors.push(
-        `${sanitize(freshItem.name)}: only ${freshItem.stock} unit${
-          freshItem.stock === 1 ? "" : "s"
-        } available, but ${cartLine.quantity} in cart.`
-      );
-    }
-  }
-  if (stockErrors.length > 0) {
-    stockErrors.forEach((err) => toast(`Stock issue: ${err}`, "error"));
-    refreshPOSItemsOnly();
-    return;
-  }
-  const subtotal = posCart.reduce((a, c) => a + c.price * c.quantity, 0);
-  const typeLabel = posPayMethod === "card" ? "Card" : "Cash";
-  const isCash = posPayMethod === "cash";
-  const sym = getCurrencySymbol();
-  openModal(
-    `Confirm ${typeLabel} Payment`,
-    `
-    <div style="padding:8px 0">
-      <div style="background:var(--gray-50);border:1px solid var(--gray-100);border-radius:var(--radius);padding:12px;margin-bottom:14px;font-size:13px">
-        ${posCart
-          .map(
-            (c) =>
-              `<div style="display:flex;justify-content:space-between;padding:2px 0"><span>${sanitize(
-                c.name
-              )} ×${c.quantity}</span><span class="text-mono">${formatCurrency(
-                c.price * c.quantity
-              )}</span></div>`
-          )
-          .join("")}
-      </div>
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-        <label style="font-size:12px;color:var(--gray-500);white-space:nowrap;font-family:var(--font-mono);font-weight:600;text-transform:uppercase;letter-spacing:.06em">Discount</label>
-        <input id="discount-val" type="number" min="0" class="form-input" style="height:34px;width:90px" placeholder="0" oninput="updateDiscountPreview(${subtotal})"/>
-        <select id="discount-type" class="form-select" style="height:34px;width:70px" onchange="updateDiscountPreview(${subtotal})"><option value="flat">${sym}</option><option value="pct">%</option></select>
-      </div>
-      <div style="display:flex;justify-content:space-between;font-size:20px;font-weight:900;font-family:var(--font-mono);margin-bottom:16px;padding:10px 0;border-top:2px solid var(--black)"><span>Total</span><span id="modal-total">${formatCurrency(
-        subtotal
-      )}</span></div>
-      ${
-        isCash
-          ? `
-      <div style="margin-bottom:8px">
-        <label style="display:block;font-size:12px;color:var(--gray-500);font-family:var(--font-mono);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">Amount Received <span style="color:var(--red)">*</span></label>
-        <input id="cash-received" type="number" min="0" step="0.01" class="form-input" style="height:40px" placeholder="Enter amount given by customer" oninput="updateChangePreview(${subtotal})" autocomplete="off"/>
-        <div id="cash-received-error" style="display:none;font-size:11px;color:var(--red);margin-top:4px;font-family:var(--font-mono)">Amount received is required for cash transactions.</div>
-      </div>
-      <div id="change-preview" style="display:none;justify-content:space-between;font-size:15px;font-weight:700;font-family:var(--font-mono);margin-bottom:14px;padding:10px 12px;background:var(--green-bg);border:1px solid #b2d9c3;border-radius:var(--radius)">
-        <span>Change</span><span id="change-amount" style="color:var(--green)">${formatCurrency(
-          0
-        )}</span>
-      </div>`
-          : `<div style="font-size:13px;color:var(--gray-500);text-align:center;margin-bottom:12px">Present card to terminal to complete payment</div>`
-      }
-      <div style="display:flex;gap:10px">
-        <button class="btn btn-outline btn-lg" style="flex:1" onclick="closeModal()">Cancel</button>
-        <button class="btn btn-primary btn-lg" style="flex:2" onclick="confirmPOSPayment('${posPayMethod}',${subtotal})">${
-      Icon.checkCircle
-    } Confirm ${typeLabel}</button>
-      </div>
-    </div>`
-  );
-}
-
-function updateDiscountPreview(subtotal) {
-  const val = parseFloat(document.getElementById("discount-val")?.value) || 0;
-  const type = document.getElementById("discount-type")?.value || "flat";
-  const discount =
-    type === "pct"
-      ? subtotal * (Math.min(val, 100) / 100)
-      : Math.min(val, subtotal);
-  const finalTotal = Math.max(0, subtotal - discount);
-  const el = document.getElementById("modal-total");
-  if (el) el.textContent = formatCurrency(finalTotal);
-}
-
-function updateChangePreview(subtotal) {
-  const discountVal =
-    parseFloat(document.getElementById("discount-val")?.value) || 0;
-  const dtype = document.getElementById("discount-type")?.value || "flat";
-  const discount =
-    dtype === "pct"
-      ? subtotal * (Math.min(discountVal, 100) / 100)
-      : Math.min(discountVal, subtotal);
-  const finalTotal = Math.max(0, subtotal - discount);
-  const cashInput = document.getElementById("cash-received");
-  const received = parseFloat(cashInput?.value) || 0;
-  const change = received - finalTotal;
-  const previewEl = document.getElementById("change-preview");
-  const changeEl = document.getElementById("change-amount");
-  const errorEl = document.getElementById("cash-received-error");
-  if (received > 0 && cashInput) {
-    cashInput.classList.remove("invalid");
-    if (errorEl) errorEl.style.display = "none";
-  }
-  if (previewEl && changeEl) {
-    if (received > 0) {
-      previewEl.style.display = "flex";
-      if (change >= 0) {
-        changeEl.textContent = formatCurrency(change);
-        changeEl.style.color = "var(--green)";
-        previewEl.style.background = "var(--green-bg)";
-        previewEl.style.borderColor = "#b2d9c3";
-      } else {
-        changeEl.textContent = `${formatCurrency(Math.abs(change))} short`;
-        changeEl.style.color = "var(--red)";
-        previewEl.style.background = "var(--red-bg)";
-        previewEl.style.borderColor = "#f5c0c4";
-      }
-    } else {
-      previewEl.style.display = "none";
-    }
-  }
-}
-
-function confirmPOSPayment(type, subtotal) {
-  const val = parseFloat(document.getElementById("discount-val")?.value) || 0;
-  const dtype = document.getElementById("discount-type")?.value || "flat";
-  window._posLastDiscountType = dtype;
-  window._posLastDiscountVal = val;
-  const discount =
-    dtype === "pct"
-      ? subtotal * (Math.min(val, 100) / 100)
-      : Math.min(val, subtotal);
-  const finalTotal = Math.max(0, subtotal - discount);
-  if (type === "cash") {
-    const cashInput = document.getElementById("cash-received");
-    const errorEl = document.getElementById("cash-received-error");
-    const receivedRaw = cashInput?.value?.trim();
-    const received = parseFloat(receivedRaw);
-    if (!receivedRaw || isNaN(received) || received <= 0) {
-      if (cashInput) {
-        cashInput.classList.add("invalid");
-        cashInput.focus();
-      }
-      if (errorEl) errorEl.style.display = "block";
-      toast("Please enter the amount received from the customer.", "error");
-      return;
-    }
-    if (received < finalTotal) {
-      if (cashInput) {
-        cashInput.classList.add("invalid");
-        cashInput.focus();
-      }
-      if (errorEl) {
-        errorEl.textContent = `Amount received (${formatCurrency(
-          received
-        )}) is less than the total (${formatCurrency(finalTotal)}).`;
-        errorEl.style.display = "block";
-      }
-      toast("Amount received is less than the total due.", "error");
-      return;
-    }
-    if (cashInput) cashInput.classList.remove("invalid");
-    if (errorEl) errorEl.style.display = "none";
-    window._posAmountReceived = received;
-    window._posChange = Math.max(0, received - finalTotal);
-  } else {
-    window._posAmountReceived = null;
-    window._posChange = null;
-  }
-  closeModal();
-  recordTransaction(finalTotal, type, discount > 0 ? discount : null);
-}
-
-function generateReceiptId(businessId) {
-  const store = getStore();
-  const biz = store.businesses.find((b) => b.id === businessId);
-  const bizName = (biz?.name || "SALE")
-    .replace(/[^a-zA-Z]/g, "")
-    .toUpperCase()
-    .slice(0, 4)
-    .padEnd(4, "X");
-  const todayStr = localDateStr(new Date());
-  // Include date in the ID format: BIZX-YYYYMMDD-0001 so receipts are unique across days
-  const todayCompact = todayStr.replace(/-/g, "");
-  const todayCount = (store.transactions || []).filter(
-    (t) =>
-      t.businessId === businessId &&
-      t.createdAt &&
-      localDateStr(new Date(t.createdAt)) === todayStr
-  ).length;
-  const seq = String(todayCount + 1).padStart(4, "0");
-  return `${bizName}-${todayCompact}-${seq}`;
-}
-
-function recordTransaction(total, type, discount) {
-  const itemsSummary = posCart
-    .map((c) => `${sanitize(c.name)} ×${c.quantity}`)
-    .join(", ");
-  const receiptId = generateReceiptId(currentUser.businessId);
-  const cartSnapshot = [...posCart];
-  const txn = {
-    id: `trx-${uid()}`,
-    receiptId,
-    businessId: currentUser.businessId,
-    cashierId: currentUser.id,
-    cashierName: currentUser.name,
-    amount: total,
-    discount: discount || 0,
-    discountType: window._posLastDiscountType || "flat",
-    discountPct:
-      window._posLastDiscountType === "pct"
-        ? window._posLastDiscountVal || 0
-        : null,
-    amountReceived: window._posAmountReceived || null,
-    change: window._posChange || null,
-    type,
-    itemsSummary,
-    createdAt: new Date().toISOString(),
-  };
-  updateStore((d) => {
-    const updatedItems = d.items.map((item) => {
-      const cartLine = cartSnapshot.find((c) => c.id === item.id);
-      if (!cartLine) return item;
-      if (item.stock === null || item.stock === undefined) return item;
-      return { ...item, stock: Math.max(0, item.stock - cartLine.quantity) };
-    });
-    return {
-      ...d,
-      transactions: [...d.transactions, txn],
-      items: updatedItems,
-    };
-  });
-  addAuditLog(`Processed ${type} transaction`, formatCurrency(total));
-  // Update dashboard chart live if it's currently visible (admin only)
-  if (typeof updateDashboardChart === "function" && activeTab === "dashboard")
-    updateDashboardChart();
-  posCart = [];
-  const searchInput = document.getElementById("pos-search-input");
-  if (searchInput) searchInput.value = "";
-  updateCartUI();
-  refreshPOSItemCache();
-  filterPOSItems();
-  toggleMobileCart(false);
-  openModal(
-    "Receipt",
-    `
-    <div style="text-align:center;padding:8px 0 16px">
-      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--gray-400);font-family:var(--font-mono);margin-bottom:4px">Receipt</div>
-      <div style="font-size:13px;font-family:var(--font-mono);color:var(--gray-500);margin-bottom:16px">${receiptId}</div>
-      <div style="background:var(--gray-50);border:1px solid var(--gray-100);border-radius:var(--radius);padding:14px;text-align:left;margin-bottom:16px;font-size:13px">
-        ${cartSnapshot
-          .map(
-            (c) =>
-              `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--gray-100)"><span>${sanitize(
-                c.name
-              )} ×${c.quantity}</span><span class="text-mono">${formatCurrency(
-                c.price * c.quantity
-              )}</span></div>`
-          )
-          .join("")}
-        ${
-          discount
-            ? `<div style="display:flex;justify-content:space-between;padding:3px 0;color:var(--green)"><span>Discount (${
-                window._posLastDiscountType === "pct"
-                  ? window._posLastDiscountVal + "%"
-                  : "flat"
-              })</span><span class="text-mono">−${formatCurrency(
-                discount
-              )}</span></div>`
-            : ""
-        }
-        <div style="display:flex;justify-content:space-between;padding-top:8px;font-weight:700"><span>Total</span><span class="text-mono">${formatCurrency(
-          total
-        )}</span></div>
-      </div>
-      <div style="font-size:12px;color:var(--gray-500);margin-bottom:4px">Payment: <strong>${
-        type === "cash" ? "Cash" : "Card"
-      }</strong></div>
-      ${
-        type === "cash" && window._posAmountReceived
-          ? `<div style="font-size:12px;color:var(--gray-500);margin-bottom:2px">Amount Received: <strong class="text-mono">${formatCurrency(
-              window._posAmountReceived
-            )}</strong></div>`
-          : ""
-      }
-      ${
-        type === "cash" && window._posChange != null
-          ? `<div style="font-size:13px;color:var(--green);font-weight:700;margin-bottom:4px">Change: ${formatCurrency(
-              window._posChange
-            )}</div>`
-          : ""
-      }
-      <div style="font-size:12px;color:var(--gray-400);margin-bottom:20px">Served by: ${sanitize(
-        currentUser.name
-      )}</div>
-      <button class="btn btn-primary btn-full btn-lg" onclick="closeModal()">${
-        Icon.checkCircle
-      } Done</button>
-    </div>`
-  );
-}
-
 // POS cart unload warning (all app pages)
 window.addEventListener("beforeunload", function (e) {
   if (typeof posCart !== "undefined" && posCart && posCart.length > 0) {
@@ -2175,238 +1443,7 @@ window.addEventListener("beforeunload", function (e) {
 // ============================================================
 // SHARED: CONTACT SUPPORT & SEND MESSAGE
 // ============================================================
-function renderContact(area) {
-  const store = getStore();
-  const biz = store.businesses.find((b) => b.id === currentUser.businessId);
-  area.innerHTML = `
-  <div class="page-header"><h2 class="page-title">Contact Support</h2></div>
-  <div class="card" style="max-width:500px">
-    <div class="card-body">
-      <div class="form-group"><label class="form-label">Business Name</label><input class="form-input" value="${sanitize(
-        biz?.name || "N/A"
-      )}" disabled/></div>
-      <div class="form-group"><label class="form-label">Your Name</label><input class="form-input" value="${sanitize(
-        currentUser.name
-      )}" disabled/></div>
-      <div class="form-group"><label class="form-label">Email Address</label><input class="form-input" value="${
-        currentUser.email || ""
-      }" disabled/></div>
-      <div class="form-group"><label class="form-label">Message</label><textarea id="support-msg" class="form-textarea" placeholder="How can we help you?"></textarea></div>
-      <button class="btn btn-primary btn-full btn-lg" onclick="sendSupportMessage()">${
-        Icon.mail
-      } Send Message</button>
-    </div>
-  </div>`;
-}
-
-function sendSupportMessage() {
-  const msgEl = document.getElementById("support-msg");
-  const msg = msgEl ? msgEl.value.trim() : "";
-  if (!msg) {
-    if (msgEl) msgEl.classList.add("invalid");
-    toast("Please enter a message", "error");
-    return;
-  }
-  if (msgEl) msgEl.classList.remove("invalid");
-  const store = getStore();
-  const biz = store.businesses.find((b) => b.id === currentUser.businessId);
-  updateStore((d) => ({
-    ...d,
-    messages: [
-      ...d.messages,
-      {
-        id: `msg-${uid()}`,
-        businessId: currentUser.businessId || "direct",
-        businessName: biz?.name || currentUser.name,
-        senderName: currentUser.name,
-        senderRole: currentUser.role,
-        email: currentUser.email,
-        message: sanitize(msg),
-        createdAt: new Date().toISOString(),
-        read: false,
-      },
-    ],
-  }));
-  document.getElementById("support-msg").value = "";
-  toast("Message sent to support!", "success");
-}
-
 // ============================================================
 // SHARED: SETTINGS (admin + cashier)
 // super-admin has its own renderSettings in super-admin.js
 // ============================================================
-function renderSettings(area) {
-  if (currentUser.role === "super-admin") {
-    _renderSuperAdminSettings(area);
-    return;
-  }
-  const store = getStore();
-  const biz = currentUser.businessId
-    ? store.businesses.find((b) => b.id === currentUser.businessId)
-    : null;
-  const st = biz ? getSubStatus(biz.id) : null;
-  const limits = biz ? PLAN_LIMITS[biz.plan] || PLAN_LIMITS.starter : null;
-  const isCashier = currentUser.role === "cashier";
-  area.innerHTML = `
-  <div class="page-header"><h2 class="page-title">Account Settings</h2></div>
-  <div style="display:flex;flex-direction:column;gap:20px;max-width:1040px">
-    <div class="settings-grid" style="display:grid;grid-template-columns:${
-      biz && !isCashier ? "1fr 1fr" : "1fr"
-    };gap:20px;align-items:start">
-      ${
-        biz && !isCashier
-          ? `
-      <div class="card">
-        <div class="card-header"><span class="card-title">Business Details</span></div>
-        <div class="card-body">
-          <div class="form-group"><label class="form-label">Business Name</label><input id="s-biz-name" class="form-input" value="${sanitize(
-            biz.name
-          )}" placeholder="Business name"/></div>
-          <div class="form-group"><label class="form-label">Business Email</label><input id="s-biz-email" class="form-input" type="email" value="${sanitize(
-            biz.email || ""
-          )}" placeholder="business@example.com"/></div>
-          <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px">
-            <div><div class="form-label">Plan</div><span class="badge badge-gray" style="font-size:13px;padding:4px 10px">${
-              limits?.label || biz.plan
-            }</span></div>
-            <div><div class="form-label">Subscription</div><span class="badge ${
-              st?.badge || "badge-gray"
-            }" style="font-size:13px;padding:4px 10px">${
-              st?.label || "Unknown"
-            }</span></div>
-            ${
-              st?.daysLeft
-                ? `<div><div class="form-label">Days Left</div><span style="font-size:14px;font-weight:700;font-family:var(--font-mono)">${st.daysLeft}</span></div>`
-                : ""
-            }
-          </div>
-          <button class="btn btn-primary btn-full" onclick="saveBusinessDetails()">Update Business Details</button>
-        </div>
-      </div>`
-          : ""
-      }
-      <div class="card" style="${isCashier ? "max-width:480px" : ""}">
-        <div class="card-header"><span class="card-title">Personal Details</span></div>
-        <div class="card-body">
-          <div class="form-group"><label class="form-label">Full Name</label><input id="s-name" class="form-input" value="${sanitize(
-            currentUser.name
-          )}"/></div>
-          <div class="form-group"><label class="form-label">Email Address</label><input id="s-email" class="form-input" type="email" value="${
-            currentUser.email
-          }"/></div>
-          <div class="form-group"><label class="form-label">New Password</label>
-            <div class="pw-wrap"><input id="s-pass" class="form-input" type="password" placeholder="Leave blank to keep current"/>
-            <button class="pw-toggle" type="button" onclick="togglePw('s-pass')"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
-          </div>
-          <button class="btn btn-primary btn-full btn-lg" onclick="saveSettings()">Update Details</button>
-        </div>
-      </div>
-    </div>
-    ${
-      currentUser.role === "admin"
-        ? `
-    <div class="card" style="border-color:var(--red);background:var(--red-bg);margin-bottom:4px">
-      <div class="card-body" style="display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap">
-        <div>
-          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--red);font-family:var(--font-mono);margin-bottom:4px">Danger Zone</div>
-          <div style="font-size:13px;color:var(--gray-600)">Permanently delete your business, all cashier accounts, inventory, transactions and subscription data.</div>
-        </div>
-        <button class="btn btn-danger-outline" onclick="deleteAccount()" style="white-space:nowrap;flex-shrink:0">Delete Account</button>
-      </div>
-    </div>`
-        : ""
-    }
-  </div>`;
-}
-
-function saveBusinessDetails() {
-  const nameEl = document.getElementById("s-biz-name");
-  const emailEl = document.getElementById("s-biz-email");
-  if (!nameEl) return;
-  const name = nameEl.value.trim();
-  const email = emailEl ? emailEl.value.trim().toLowerCase() : "";
-  if (!name) {
-    toast("Business name cannot be empty", "error");
-    return;
-  }
-  if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-    toast("Please enter a valid business email", "error");
-    return;
-  }
-  updateStore((d) => ({
-    ...d,
-    businesses: d.businesses.map((b) =>
-      b.id === currentUser.businessId
-        ? { ...b, name: sanitize(name), ...(email ? { email } : {}) }
-        : b
-    ),
-  }));
-  addAuditLog("Updated business details", name);
-  toast("Business details updated", "success");
-}
-
-function saveSettings() {
-  const name = document.getElementById("s-name").value.trim();
-  const email = document.getElementById("s-email").value.trim().toLowerCase();
-  const pass = document.getElementById("s-pass").value;
-  if (!name || !email) {
-    toast("Name and email are required", "error");
-    return;
-  }
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-    toast("Please enter a valid email address", "error");
-    return;
-  }
-  const store = getStore();
-  const dup = store.users.find(
-    (u) => u.email.toLowerCase() === email && u.id !== currentUser.id
-  );
-  if (dup) {
-    toast("This email is already in use", "error");
-    return;
-  }
-  const updatedPass = pass ? pass : currentUser.password;
-  currentUser = {
-    ...currentUser,
-    name: sanitize(name),
-    email,
-    password: updatedPass,
-  };
-  updateStore((d) => ({
-    ...d,
-    users: d.users.map((u) =>
-      u.id === currentUser.id
-        ? { ...u, name: sanitize(name), email, password: updatedPass }
-        : u
-    ),
-    currentUser,
-  }));
-  document.getElementById("topbar-user-name").textContent = currentUser.name;
-  document.getElementById("s-pass").value = "";
-  toast("Settings updated", "success");
-}
-
-function deleteAccount() {
-  confirm2(
-    "Delete Account",
-    "This will permanently delete your business, all cashier accounts, inventory, transactions and subscription data. This cannot be undone."
-  ).then((ok) => {
-    if (!ok) return;
-    const bizId = currentUser.businessId;
-    updateStore((d) => ({
-      ...d,
-      users: d.users.filter(
-        (u) => u.id !== currentUser.id && u.businessId !== bizId
-      ),
-      businesses: d.businesses.filter((b) => b.id !== bizId),
-      items: d.items.filter((i) => i.businessId !== bizId),
-      transactions: d.transactions.filter((t) => t.businessId !== bizId),
-      subscriptions: d.subscriptions.filter((s) => s.businessId !== bizId),
-      messages: d.messages.filter((m) => m.businessId !== bizId),
-      locations: d.locations.filter((l) => l.businessId !== bizId),
-      auditLogs: d.auditLogs.filter((l) => l.businessId !== bizId),
-      currentUser: null,
-    }));
-    performLogout();
-  });
-}

@@ -103,6 +103,11 @@ function goToPlanPage() {
     toast("Please fill in: " + errors.join(", "), "error");
     return;
   }
+  const privacyCheckbox = document.getElementById("reg-privacy-agree");
+  if (privacyCheckbox && !privacyCheckbox.checked) {
+    toast("You must agree to the Privacy Policy to continue", "error");
+    return;
+  }
   const store = getStore();
   if (store.users.find((u) => u.email.toLowerCase() === email.toLowerCase())) {
     document.getElementById("reg-email").classList.add("invalid");
@@ -114,6 +119,115 @@ function goToPlanPage() {
   if (window._preselectedPlan) {
     selectPlan(window._preselectedPlan);
     window._preselectedPlan = null;
+  }
+}
+
+// ============================================================
+// EMAIL DELIVERY (temp password on Forgot Password)
+// ------------------------------------------------------------
+// SaleStation is currently a client-side app with no backend, so
+// there is nowhere to send real SMTP mail from yet. This section
+// is wired up and ready to go: once an SMTP-backed endpoint exists
+// (e.g. a small Node/Express route that takes {to, subject, html}
+// and sends it via Nodemailer/SES/SendGrid/etc.), just update
+// EMAIL_CONFIG.endpoint below and emails will start sending for
+// real. Until then, handleForgotPassword() automatically falls
+// back to showing the temp password on-screen so the flow keeps
+// working in the meantime.
+// ============================================================
+const EMAIL_CONFIG = {
+  // TODO: point this at your SMTP-backed endpoint once it exists.
+  // Expected contract: POST { to, subject, html } -> 2xx on success.
+  endpoint: "/api/send-email",
+  fromName: "SaleStation",
+};
+
+// Builds a styled, email-client-safe HTML template for the temp
+// password message. Uses inline styles + table layout (not the
+// app's shared.css) because most email clients strip <style> tags
+// and ignore external stylesheets.
+function buildTempPasswordEmailHTML(recipientName, tempPass) {
+  const safeName = sanitize(recipientName || "there");
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Your SaleStation Temporary Password</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f5;padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border:1px solid #e4e4e7;border-radius:8px;overflow:hidden;">
+          <!-- Header -->
+          <tr>
+            <td style="background-color:#0a0a0a;padding:24px 32px;text-align:center;">
+              <span style="color:#ffffff;font-size:18px;font-weight:700;letter-spacing:0.04em;">SaleStation</span>
+            </td>
+          </tr>
+          <!-- Body -->
+          <tr>
+            <td style="padding:32px;">
+              <p style="margin:0 0 8px;color:#18181b;font-size:16px;font-weight:600;">Hi ${safeName},</p>
+              <p style="margin:0 0 20px;color:#52525b;font-size:14px;line-height:1.6;">
+                We received a request to reset your SaleStation password. Use the
+                temporary password below to log back in.
+              </p>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
+                <tr>
+                  <td style="background-color:#f4f4f5;border:1px solid #e4e4e7;border-radius:6px;padding:18px;text-align:center;">
+                    <span style="font-family:'Courier New',Courier,monospace;font-size:22px;font-weight:700;letter-spacing:0.12em;color:#0a0a0a;">${sanitize(
+                      tempPass
+                    )}</span>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:0 0 4px;color:#71717a;font-size:12px;line-height:1.6;">
+                For your security, please log in and change this password from
+                <strong>Account Settings</strong> right away.
+              </p>
+              <p style="margin:16px 0 0;color:#a1a1aa;font-size:12px;line-height:1.6;">
+                If you didn't request this, you can safely ignore this email —
+                your password will remain unchanged until this temporary one is used.
+              </p>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="padding:16px 32px 28px;border-top:1px solid #f0f0f1;">
+              <p style="margin:0;color:#a1a1aa;font-size:11px;line-height:1.6;text-align:center;">
+                This is an automated message from SaleStation. Please do not reply
+                to this email.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+// Sends the temp password email. Returns true on confirmed success,
+// false if the send failed or no backend endpoint is configured yet
+// (e.g. a 404 while EMAIL_CONFIG.endpoint is still a placeholder).
+async function sendTempPasswordEmail(toEmail, recipientName, tempPass) {
+  try {
+    const res = await fetch(EMAIL_CONFIG.endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        to: toEmail,
+        subject: "Your SaleStation Temporary Password",
+        html: buildTempPasswordEmailHTML(recipientName, tempPass),
+      }),
+    });
+    return res.ok;
+  } catch (err) {
+    console.error("sendTempPasswordEmail failed:", err);
+    return false;
   }
 }
 
@@ -131,7 +245,7 @@ function showForgotPassword() {
   );
 }
 
-function handleForgotPassword() {
+async function handleForgotPassword() {
   const email = document.getElementById("fp-email")?.value.trim().toLowerCase();
   if (!email) {
     toast("Please enter your email address", "error");
@@ -143,25 +257,64 @@ function handleForgotPassword() {
     toast("No account found with that email address", "error");
     return;
   }
+
+  // Show a brief "sending" state on the submit button while we
+  // generate the temp password and attempt the email send.
+  const submitBtn = document.querySelector(
+    '#modal-body .btn-primary[onclick="handleForgotPassword()"]'
+  );
+  const prevBtnHTML = submitBtn ? submitBtn.innerHTML : null;
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = "Sending...";
+  }
+
   const arr = new Uint32Array(2);
   crypto.getRandomValues(arr);
   const tempPass =
     "T" +
     arr[0].toString(36).toUpperCase() +
     arr[1].toString(36).toUpperCase().slice(0, 4);
+
   updateStore((d) => ({
     ...d,
     users: d.users.map((u) =>
       u.email.toLowerCase() === email ? { ...u, password: tempPass } : u
     ),
   }));
+
+  const emailSent = await sendTempPasswordEmail(
+    user.email,
+    user.name,
+    tempPass
+  );
+
+  if (submitBtn && prevBtnHTML !== null) {
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = prevBtnHTML;
+  }
+
   document.getElementById("modal-overlay").classList.remove("open");
   setTimeout(() => {
     document.getElementById("modal-title").innerHTML = "Password Reset";
-    document.getElementById("modal-body").innerHTML = `
+    document.getElementById("modal-body").innerHTML = emailSent
+      ? `
       <div style="text-align:center;padding:12px 0">
-        <p style="font-size:13px;color:var(--gray-600);margin-bottom:16px">Your temporary password is:</p>
-        <div style="background:var(--gray-50);border:1px solid var(--gray-200);border-radius:var(--radius);padding:14px;font-family:var(--font-mono);font-size:20px;font-weight:700;letter-spacing:.1em;margin-bottom:16px">${tempPass}</div>
+        <div style="width:48px;height:48px;border-radius:50%;background:var(--gray-50);border:1px solid var(--gray-200);display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
+          <svg width="22" height="22" fill="none" stroke="var(--black)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        </div>
+        <p style="font-size:14px;color:var(--gray-700);font-weight:600;margin-bottom:6px">Check your inbox</p>
+        <p style="font-size:13px;color:var(--gray-500);margin-bottom:20px">A temporary password has been sent to <strong>${sanitize(
+          user.email
+        )}</strong>. Please log in and change your password in Account Settings immediately.</p>
+        <button class="btn btn-primary btn-full btn-lg" onclick="closeModal()">Got it</button>
+      </div>`
+      : `
+      <div style="text-align:center;padding:12px 0">
+        <p style="font-size:13px;color:var(--gray-600);margin-bottom:8px">We couldn't email your temporary password right now, so here it is:</p>
+        <div style="background:var(--gray-50);border:1px solid var(--gray-200);border-radius:var(--radius);padding:14px;font-family:var(--font-mono);font-size:20px;font-weight:700;letter-spacing:.1em;margin-bottom:16px">${sanitize(
+          tempPass
+        )}</div>
         <p style="font-size:12px;color:var(--gray-400);margin-bottom:20px">Please log in and change your password in Account Settings immediately.</p>
         <button class="btn btn-primary btn-full btn-lg" onclick="closeModal()">OK, I've noted it</button>
       </div>`;
@@ -321,6 +474,14 @@ function completeRegistration(bizName, ownerName, email, password, plan) {
     },
   }));
   currentUser = getStore().currentUser;
+  addPaymentRecord(
+    bizId,
+    sanitize(bizName),
+    normalizedEmail,
+    plan,
+    plan === "trial" ? 0 : Number(PLAN_LIMITS[plan]?.price || 0),
+    "registration"
+  );
   [
     "reg-biz",
     "reg-owner",

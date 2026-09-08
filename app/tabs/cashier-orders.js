@@ -1,17 +1,12 @@
 // ============================================================
-// cashier.js - SaleStation
-// Cashier-only views: My Orders.
-// All other functions (POS, Inventory, Contact, Settings,
-// Paystack/subscription state) are now in shared.js.
+// tabs/cashier-orders.js - Cashier tab: My Orders
+// Also includes the no-op updateDashboardChart stub (cashier.html
+// has no dashboard; shared.js's recordTransaction() calls it).
+// Depends on shared.js (loaded first). Loaded by cashier.html.
 // ============================================================
 
-// updateDashboardChart is called from shared.js recordTransaction.
-// On the cashier page there is no dashboard, so this is a no-op stub.
 function updateDashboardChart() {}
 
-// ============================================================
-// MY ORDERS (cashier-only view)
-// ============================================================
 function renderOrders(area) {
   const store = getStore();
   const today = localDateStr(new Date());

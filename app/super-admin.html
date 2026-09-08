@@ -12,6 +12,8 @@
         rel="stylesheet" />
     <link rel="shortcut icon" href="../assets/icon.ico" type="image/x-icon">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
     <link rel="stylesheet" href="shared.css" />
     <style>
         body {
@@ -123,7 +125,12 @@
     </div>
 
     <script src="shared.js"></script>
-    <script src="super-admin.js"></script>
+    <script src="tabs/settings.js"></script>
+    <script src="tabs/superadmin-dashboard.js"></script>
+    <script src="tabs/superadmin-businesses.js"></script>
+    <script src="tabs/superadmin-payments.js"></script>
+    <script src="tabs/superadmin-messages.js"></script>
+    <script src="tabs/superadmin-settings.js"></script>
     <script>
         (function initSuperAdmin() {
             const store = getStore();

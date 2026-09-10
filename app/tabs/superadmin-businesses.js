@@ -23,7 +23,7 @@ function renderBusinesses(area) {
         <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--gray-400);pointer-events:none"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <input type="text" placeholder="Search name, email or country..." value="${sanitize(
           bizSearchQuery
-        )}" oninput="bizSearchQuery=this.value;renderBusinesses(document.getElementById('content-area'))" style="width:100%;height:36px;padding:0 12px 0 32px;border:1px solid var(--gray-200);border-radius:var(--radius);font-family:var(--font-main);font-size:13px;outline:none;background:var(--white);color:var(--black);transition:border-color .15s" onfocus="this.style.borderColor='var(--black)'" onblur="this.style.borderColor='var(--gray-200)'"/>
+        )}" oninput="bizSearchQuery=this.value;debounceRender(()=>renderBusinesses(document.getElementById('content-area')))" style="width:100%;height:36px;padding:0 12px 0 32px;border:1px solid var(--gray-200);border-radius:var(--radius);font-family:var(--font-main);font-size:13px;outline:none;background:var(--white);color:var(--black);transition:border-color .15s" onfocus="this.style.borderColor='var(--black)'" onblur="this.style.borderColor='var(--gray-200)'"/>
       </div>
       <span style="font-size:12px;color:var(--gray-400);font-family:var(--font-mono);margin-left:auto">${
         businesses.length
@@ -68,7 +68,7 @@ function renderBusinesses(area) {
     </table></div></div>`;
 }
 
-function toggleBizStatus(id) {
+function toggleBizStatus(id, btn) {
   const store = getStore();
   const biz = store.businesses.find((b) => b.id === id);
   const newStatus = biz?.status === "active" ? "inactive" : "active";
@@ -82,6 +82,17 @@ function toggleBizStatus(id) {
       return;
     }
   }
+  // Optimistic UI: flip the row's badge/label immediately so the click
+  // feels instant, before the store write + full-tab re-render below.
+  const row = btn ? btn.closest("tr") : null;
+  const badge = row ? row.querySelector(".badge") : null;
+  if (badge) {
+    badge.textContent = newStatus === "active" ? "Active" : "Inactive";
+    badge.className = `badge ${
+      newStatus === "active" ? "badge-green" : "badge-red"
+    }`;
+  }
+  if (btn) btn.textContent = newStatus === "active" ? "Deactivate" : "Activate";
   updateStore((d) => ({
     ...d,
     businesses: d.businesses.map((b) =>

@@ -295,15 +295,15 @@ function updateCartUI() {
         <div class="qty-ctrl">
           <button class="qty-btn" onclick="changeQty('${
             c.id
-          }',-1)" aria-label="Decrease">−</button>
+          }',-1)" aria-label="Decrease" title="Decrease quantity">−</button>
           <span class="qty-num">${c.quantity}</span>
           <button class="qty-btn" onclick="changeQty('${
             c.id
-          }',1)" aria-label="Increase">+</button>
+          }',1)" aria-label="Increase" title="Increase quantity">+</button>
         </div>
         <button class="cart-remove-btn" onclick="removeFromCart('${
           c.id
-        }')" aria-label="Remove">${Icon.trash}</button>
+        }')" aria-label="Remove" title="Remove from cart">${Icon.trash}</button>
       </div>`
       )
       .join("");

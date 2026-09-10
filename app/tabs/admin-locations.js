@@ -44,10 +44,10 @@ function renderLocations(area) {
                     l.address || "-"
                   )}</td><td>${cashiers.length}</td>
                 <td><div class="td-actions">
-                  <button class="btn btn-sm btn-outline" onclick="openLocationModal('${
+                  <button class="btn btn-sm btn-outline" title="Edit location" onclick="openLocationModal('${
                     l.id
                   }')">${Icon.edit}</button>
-                  <button class="btn btn-sm btn-danger-outline" onclick="deleteLocation('${
+                  <button class="btn btn-sm btn-danger-outline" title="Delete location" onclick="deleteLocation('${
                     l.id
                   }')">${Icon.trash}</button>
                 </div></td></tr>`;

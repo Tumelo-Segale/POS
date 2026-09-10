@@ -46,15 +46,15 @@ function renderCashiers(area) {
                   c.status === "active" ? "badge-green" : "badge-red"
                 }">${c.status}</span></td>
                 <td><div class="td-actions">
-                  <button class="btn btn-sm btn-outline" onclick="openCashierModal('${
+                  <button class="btn btn-sm btn-outline" title="Edit cashier" onclick="openCashierModal('${
                     c.id
                   }')">${Icon.edit}</button>
                   <button class="btn btn-sm btn-outline" onclick="toggleCashierStatus('${
                     c.id
-                  }')">${
+                  }', this)">${
                     c.status === "active" ? "Suspend" : "Activate"
                   }</button>
-                  <button class="btn btn-sm btn-danger-outline" onclick="deleteCashier('${
+                  <button class="btn btn-sm btn-danger-outline" title="Delete cashier" onclick="deleteCashier('${
                     c.id
                   }')">${Icon.trash}</button>
                 </div></td>
@@ -218,16 +218,24 @@ function saveCashier(cashierId) {
   renderCashiers(document.getElementById("content-area"));
 }
 
-function toggleCashierStatus(id) {
+function toggleCashierStatus(id, btn) {
   const store = getStore();
   const cashier = store.users.find((u) => u.id === id);
+  const newStatus = cashier?.status === "active" ? "suspended" : "active";
+  // Optimistic UI: flip this row's badge + button label immediately,
+  // ahead of the store write + full-tab re-render below.
+  const row = btn ? btn.closest("tr") : null;
+  const badge = row ? row.querySelector(".badge") : null;
+  if (badge) {
+    badge.textContent = newStatus;
+    badge.className = `badge ${
+      newStatus === "active" ? "badge-green" : "badge-red"
+    }`;
+  }
+  if (btn) btn.textContent = newStatus === "active" ? "Suspend" : "Activate";
   updateStore((d) => ({
     ...d,
-    users: d.users.map((u) =>
-      u.id === id
-        ? { ...u, status: u.status === "active" ? "suspended" : "active" }
-        : u
-    ),
+    users: d.users.map((u) => (u.id === id ? { ...u, status: newStatus } : u)),
   }));
   addAuditLog("Changed cashier status", cashier?.name);
   renderCashiers(document.getElementById("content-area"));

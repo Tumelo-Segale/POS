@@ -343,7 +343,9 @@ let _pendingLoginRenewal = null;
 let _pendingPaystackConfirm = null;
 let _pendingRenew = null;
 
-function _handlePaystackConfirm() {
+function _handlePaystackConfirm(btn) {
+  if (btn && btn.disabled) return; // already acknowledged; ignore repeat clicks
+  lockButton(btn, "Processing…");
   if (typeof _pendingPaystackConfirm === "function") _pendingPaystackConfirm();
 }
 function _handleLoginSubContinue() {
@@ -400,7 +402,7 @@ function simulatePaystack(
         </div>
         <div style="display:flex;gap:10px">
           <button class="btn btn-outline btn-lg" style="flex:1" onclick="closeModal()">Cancel</button>
-          <button class="btn btn-primary btn-lg" style="flex:2" onclick="_handlePaystackConfirm()">${Icon.checkCircle} Activate Trial</button>
+          <button class="btn btn-primary btn-lg" style="flex:2" onclick="_handlePaystackConfirm(this)">${Icon.checkCircle} Activate Trial</button>
         </div>
       </div>`
     );
@@ -453,7 +455,7 @@ function simulatePaystack(
       </div>
       <div style="display:flex;gap:10px">
         <button class="btn btn-outline btn-lg" style="flex:1" onclick="closeModal()">Cancel</button>
-        <button class="btn btn-primary btn-lg" style="flex:2" onclick="_handlePaystackConfirm()">${Icon.paystack} Pay Now</button>
+        <button class="btn btn-primary btn-lg" style="flex:2" onclick="_handlePaystackConfirm(this)">${Icon.paystack} Pay Now</button>
       </div>
     </div>`
   );
@@ -484,6 +486,7 @@ function simulatePaystack(
       },
       onClose: function () {
         toast("Payment cancelled.", "error");
+        unlockButton(_lastLockedTriggerBtn);
       },
       callback: function () {
         closeModal();
@@ -1182,6 +1185,74 @@ function closeMobileSidebar() {
   } catch (e) {}
 }
 
+// ============================================================
+// SKELETON LOADERS
+// Shown for one paint cycle while a (potentially heavy) tab
+// render runs, so the UI never freezes on a blank screen —
+// used instead of spinners for all tab/content loading.
+// ============================================================
+function skeletonToolbarRow() {
+  return `<div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+    <div class="skel skel-toolbar"></div>
+  </div>`;
+}
+function skeletonTableHTML(rows = 6, cols = 4) {
+  const row = () =>
+    `<div class="skel-row">${Array.from(
+      { length: cols },
+      (_, i) =>
+        `<div class="skel skel-cell${i === 0 ? " skel-cell-sm" : ""}"></div>`
+    ).join("")}</div>`;
+  return `
+    <div class="skel skel-page-header"></div>
+    ${skeletonToolbarRow()}
+    <div class="card"><div>${Array.from({ length: rows }, row).join(
+      ""
+    )}</div></div>
+  `;
+}
+function skeletonCardsHTML(n = 3) {
+  return `
+    <div class="skel skel-page-header"></div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap">
+      ${Array.from(
+        { length: n },
+        () => `<div class="skel skel-card" style="min-width:220px"></div>`
+      ).join("")}
+    </div>
+  `;
+}
+// Tabs whose content is a searchable/sortable table — these get the
+// table skeleton. Everything else (POS, settings, contact) renders
+// fast enough, and isn't list-shaped, so it skips the skeleton.
+const SKELETON_TABLE_TABS = new Set([
+  "dashboard",
+  "cashiers",
+  "locations",
+  "audit-logs",
+  "transactions",
+  "receipts",
+  "items",
+  "subscriptions",
+  "businesses",
+  "payments",
+  "messages",
+]);
+function renderContentWithSkeleton(tab) {
+  const area = document.getElementById("content-area");
+  if (!area || !SKELETON_TABLE_TABS.has(tab)) {
+    renderContent(tab);
+    return;
+  }
+  area.innerHTML =
+    tab === "dashboard" ? skeletonCardsHTML(4) : skeletonTableHTML();
+  // Two rAFs guarantee the skeleton actually paints to the screen
+  // before the (synchronous, possibly heavy) real render runs.
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => renderContent(tab));
+  });
+}
+
 function navigate(tab) {
   if (
     activeTab === "pos" &&
@@ -1235,7 +1306,7 @@ function _doNavigate(tab) {
     }, 50);
   }
   if (window.innerWidth <= 768) closeMobileSidebar();
-  renderContent(tab);
+  renderContentWithSkeleton(tab);
   updateSubStatusBadge();
 }
 
@@ -1285,6 +1356,46 @@ function closeModal(e) {
   if (!e || e.target === document.getElementById("modal-overlay")) {
     document.getElementById("modal-overlay").classList.remove("open");
     document.getElementById("modal-overlay").onclick = closeModal;
+    unlockButton(_lastLockedTriggerBtn);
+    _lastLockedTriggerBtn = null;
+  }
+}
+
+// ============================================================
+// BUTTON ACKNOWLEDGEMENT / LOCKING
+// Disables & relabels a button the instant it's clicked so a
+// second click (double-tap, slow network, impatience) can't
+// double-submit — used for payments and other one-shot actions.
+// ============================================================
+// ============================================================
+// SEARCH DEBOUNCE
+// Delays a full tab re-render until typing pauses, so large
+// tables (payments, businesses, etc.) don't re-render on every
+// keystroke — matters once real data volume grows.
+// ============================================================
+let _searchDebounceTimer = null;
+function debounceRender(fn, delay = 200) {
+  clearTimeout(_searchDebounceTimer);
+  _searchDebounceTimer = setTimeout(fn, delay);
+}
+
+let _lastLockedTriggerBtn = null;
+function lockButton(btn, label) {
+  if (!btn || btn.disabled) return false;
+  if (!btn.dataset.origHtml) btn.dataset.origHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.classList.add("btn-locked");
+  btn.innerHTML = label || "Please wait…";
+  _lastLockedTriggerBtn = btn;
+  return true;
+}
+function unlockButton(btn) {
+  if (!btn) return;
+  btn.disabled = false;
+  btn.classList.remove("btn-locked");
+  if (btn.dataset.origHtml) {
+    btn.innerHTML = btn.dataset.origHtml;
+    delete btn.dataset.origHtml;
   }
 }
 

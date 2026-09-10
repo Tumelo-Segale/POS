@@ -126,27 +126,27 @@ function renderSubscriptions(area) {
         <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
           ${
             biz.plan === "trial"
-              ? `<button class="btn btn-primary" onclick="handleUpgrade('starter')">Upgrade to Starter</button>`
+              ? `<button class="btn btn-primary" onclick="handleUpgrade('starter', this)">Upgrade to Starter</button>`
               : ""
           }
           ${
             biz.plan === "trial"
-              ? `<button class="btn btn-outline" onclick="handleUpgrade('premium')">Upgrade to Premium</button>`
+              ? `<button class="btn btn-outline" onclick="handleUpgrade('premium', this)">Upgrade to Premium</button>`
               : ""
           }
           ${
             biz.plan === "starter" && !nextPlan && sub.status !== "cancelled"
-              ? `<button class="btn btn-primary" onclick="handleUpgrade('premium')">Upgrade to Premium</button>`
+              ? `<button class="btn btn-primary" onclick="handleUpgrade('premium', this)">Upgrade to Premium</button>`
               : ""
           }
           ${
             st?.status === "cancelled-expired" || st?.status === "expired"
-              ? `<button class="btn btn-primary" onclick="handleRenew()">Renew Subscription</button>`
+              ? `<button class="btn btn-primary" onclick="handleRenew(this)">Renew Subscription</button>`
               : ""
           }
           ${
             sub.status === "cancelled" && st?.active && renewalOpen
-              ? `<button class="btn btn-primary" onclick="handleRenew()">Renew Subscription</button>`
+              ? `<button class="btn btn-primary" onclick="handleRenew(this)">Renew Subscription</button>`
               : ""
           }
           ${
@@ -154,7 +154,7 @@ function renderSubscriptions(area) {
             st?.active &&
             sub.status !== "cancelled" &&
             renewalOpen
-              ? `<button class="btn btn-primary" onclick="handleRenew()">Renew Subscription</button>`
+              ? `<button class="btn btn-primary" onclick="handleRenew(this)">Renew Subscription</button>`
               : ""
           }
           ${
@@ -178,11 +178,12 @@ function renderSubscriptions(area) {
   </div>`;
 }
 
-function handleUpgrade(targetPlan) {
+function handleUpgrade(targetPlan, btn) {
   if (targetPlan === "trial") {
     toast("Trial plan is not available as an upgrade option.", "error");
     return;
   }
+  lockButton(btn, "Please wait…");
   const store = getStore();
   const biz = store.businesses.find((b) => b.id === currentUser.businessId);
   const sub = store.subscriptions.find(
@@ -381,7 +382,8 @@ function completeRenew(newPlan) {
   );
 }
 
-function handleRenew() {
+function handleRenew(btn) {
+  lockButton(btn, "Please wait…");
   const store = getStore();
   const biz = store.businesses.find((b) => b.id === currentUser.businessId);
   const featureList = (plan) =>

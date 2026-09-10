@@ -387,7 +387,7 @@ function selectPlan(plan) {
   });
 }
 
-function handleRegister() {
+function handleRegister(btn) {
   const bizName = document.getElementById("reg-biz").value.trim();
   const ownerName = document.getElementById("reg-owner").value.trim();
   const email = document.getElementById("reg-email").value.trim();
@@ -404,6 +404,7 @@ function handleRegister() {
     document.getElementById("reg-email").classList.add("invalid");
     return;
   }
+  lockButton(btn, "Processing…");
   simulatePaystack(bizName, ownerName, email, password, selectedPlan, false);
 }
 

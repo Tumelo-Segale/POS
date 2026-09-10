@@ -30,7 +30,7 @@ function renderInvRow(item, isRestaurant, showLocCol, locations) {
   const isAdmin = currentUser.role === "admin";
   const actionCell = isAdmin
     ? `<td><div class="td-actions">
-    <button class="btn btn-sm btn-outline" onclick="openItemModal('${
+    <button class="btn btn-sm btn-outline" title="Edit item" onclick="openItemModal('${
       item.id
     }')">${Icon.edit}</button>
     <button class="btn btn-sm ${
@@ -38,7 +38,7 @@ function renderInvRow(item, isRestaurant, showLocCol, locations) {
     }" onclick="toggleItemStatus('${item.id}')" title="${
         item.status === "active" ? "Deactivate" : "Activate"
       }">${item.status === "active" ? "Deactivate" : "Activate"}</button>
-    <button class="btn btn-sm btn-danger-outline" onclick="deleteItem('${
+    <button class="btn btn-sm btn-danger-outline" title="Delete item" onclick="deleteItem('${
       item.id
     }')">${Icon.trash}</button>
   </div></td>`

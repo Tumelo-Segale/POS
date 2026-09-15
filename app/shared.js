@@ -1422,8 +1422,8 @@ const PRIVACY_POLICY_HTML = `
       <li>To improve the reliability, security, and performance of the Platform</li>
     </ul>
 
-    <h4 style="font-family:var(--font-mono);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--black);margin-bottom:8px">4. Data Storage & Security</h4>
-    <p style="margin-bottom:12px">Your data is stored securely and protected using industry-standard safeguards. Access to business data is restricted to authorized users within your business account based on role (super-admin, admin, cashier).</p>
+    <h4 style="font-family:var(--font-mono);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--black);margin-bottom:8px">4. Data Storage, Security & Breach Notification</h4>
+    <p style="margin-bottom:12px">Your data is stored securely and protected using industry-standard safeguards. Access to business data is restricted to authorized users within your business account based on role (super-admin, admin, cashier). No method of transmission or storage over the internet is 100% secure; in the unlikely event of a data breach affecting your personal information, we will notify affected users and, where required, the Information Regulator, without undue delay and in accordance with POPIA.</p>
 
     <h4 style="font-family:var(--font-mono);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--black);margin-bottom:8px">5. Data Sharing</h4>
     <p style="margin-bottom:12px">We do not sell your personal or business data to third parties. Data may be shared only with service providers strictly necessary to operate the Platform (such as our payment processor, Paystack, for subscription billing), or where required by law.</p>
@@ -1446,6 +1446,67 @@ const PRIVACY_POLICY_HTML = `
 
 function openPrivacyPolicyModal() {
   openModal("Privacy Policy", PRIVACY_POLICY_HTML);
+}
+
+// ============================================================
+// TERMS & CONDITIONS MODAL
+// Shared between the registration flow and any other app page
+// that links to the Terms and Conditions. Uses the generic
+// openModal() popup (with its built-in close button) declared above.
+// ============================================================
+const TERMS_AND_CONDITIONS_HTML = `
+  <div style="font-size:13px;color:var(--gray-600);line-height:1.7">
+    <h4 style="font-family:var(--font-mono);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--black);margin-bottom:8px">1. Acceptance of Terms</h4>
+    <p style="margin-bottom:12px">By accessing or using SaleStation ("the Platform"), you agree to be bound by these Terms and Conditions. If you do not agree to these terms, you may not use the Platform. These terms apply to all users including business owners, cashiers, and visitors.</p>
+
+    <h4 style="font-family:var(--font-mono);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--black);margin-bottom:8px">2. Description of Service</h4>
+    <p style="margin-bottom:12px">SaleStation is a cloud-based Point of Sale (POS) system designed for businesses operating in South Africa, Botswana, Lesotho, and Namibia. The Platform provides tools for managing sales, inventory, cashiers, receipts, subscriptions, multi-store operations, and per-branch inventory isolation.</p>
+
+    <h4 style="font-family:var(--font-mono);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--black);margin-bottom:8px">3. Account Registration</h4>
+    <p style="margin-bottom:12px">To access the Platform, you must register a business account. You agree to provide accurate, current, and complete information, maintain the security of your account credentials, notify us immediately of any unauthorized use of your account, and take responsibility for all activity that occurs under your account.</p>
+
+    <h4 style="font-family:var(--font-mono);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--black);margin-bottom:8px">4. Subscription Plans & Payment Terms</h4>
+    <p style="margin-bottom:12px">SaleStation offers a Free Trial and paid plans (Starter at R200/mo, Premium at R500/mo). All subscription fees are priced and billed in South African Rand (ZAR), the Platform's base currency, regardless of the country or currency selected on your account.</p>
+    <ul style="margin:0 0 12px 16px">
+      <li>By subscribing, you authorize recurring charges to your chosen payment method at the start of each billing cycle via our payment processor, Paystack.</li>
+      <li>If you are billed from Botswana, Lesotho, or Namibia, your card issuer or bank will convert the ZAR charge into your local currency at its prevailing exchange rate at the time of the transaction. SaleStation does not set, control, or guarantee this exchange rate and is not responsible for currency fluctuations, conversion fees, or cross-border transaction charges applied by your bank.</li>
+      <li>All fees are exclusive of any bank charges, currency conversion fees, or applicable taxes (including VAT), which remain your responsibility.</li>
+      <li>All payments are non-refundable except where required by applicable law.</li>
+      <li>If a payment fails or is declined, SaleStation may retry the charge and will notify you; a 2-day grace period applies to expired or failed subscriptions before access is suspended.</li>
+      <li>SaleStation reserves the right to change subscription pricing with reasonable prior notice to registered users; continued use after a price change takes effect constitutes acceptance of the new pricing.</li>
+    </ul>
+
+    <h4 style="font-family:var(--font-mono);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--black);margin-bottom:8px">5. Acceptable Use</h4>
+    <p style="margin-bottom:12px">You agree not to use the Platform to engage in fraudulent, deceptive, or illegal activities; transmit harmful, offensive, or unlawful content; attempt to gain unauthorized access to any part of the Platform; reverse engineer, decompile, or disassemble any part of the Platform; or resell or redistribute access to the Platform without written consent.</p>
+
+    <h4 style="font-family:var(--font-mono);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--black);margin-bottom:8px">6. Cybersecurity & Risk</h4>
+    <p style="margin-bottom:12px">While SaleStation implements reasonable technical and organizational safeguards to protect the Platform and your data, no online system can be guaranteed to be completely secure. You acknowledge that the use of internet-based services carries inherent risks, including unauthorized access, data breaches, malware, and service disruption caused by third parties beyond our reasonable control.</p>
+    <ul style="margin:0 0 12px 16px">
+      <li>You are responsible for maintaining the confidentiality of your login credentials and for all activity that occurs under your account.</li>
+      <li>You must notify SaleStation immediately if you suspect unauthorized access to your account or a security incident affecting your data.</li>
+      <li>In the event of a data breach affecting your personal or business information, SaleStation will take reasonable steps to investigate, contain, and notify affected users and, where required, the relevant regulator, in accordance with POPIA and applicable law.</li>
+      <li>SaleStation shall not be liable for losses arising from cyberattacks, unauthorized access, or data breaches that occur despite reasonable security measures being in place, except to the extent caused by our gross negligence or willful misconduct.</li>
+    </ul>
+
+    <h4 style="font-family:var(--font-mono);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--black);margin-bottom:8px">7. Liability & Indemnification</h4>
+    <p style="margin-bottom:12px">The Platform is provided "as is" and "as available", without warranties of any kind, whether express or implied, to the maximum extent permitted by law. SaleStation shall not be liable for any indirect, incidental, special, consequential, or punitive damages, including loss of revenue, loss of data, loss of profits, or business interruption, arising from your use of or inability to use the Platform, including losses resulting from the cybersecurity risks described in Section 6.</p>
+    <p style="margin-bottom:12px">Where liability cannot be excluded by law, SaleStation's total aggregate liability to you for any claim arising from or related to your use of the Platform shall not exceed the total subscription fees paid by you in the three (3) months preceding the event giving rise to the claim. You agree to indemnify and hold SaleStation, its owners, and affiliates harmless from any claims, losses, damages, or expenses (including reasonable legal costs) arising from your breach of these Terms, your misuse of the Platform, or the data you enter into it.</p>
+
+    <h4 style="font-family:var(--font-mono);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--black);margin-bottom:8px">8. Account Suspension & Termination</h4>
+    <p style="margin-bottom:12px">SaleStation reserves the right to suspend or terminate accounts that violate these Terms, engage in fraudulent activity, or fail to maintain an active subscription. Upon termination, access to the Platform and associated data may be revoked. You may also delete your account at any time from the account settings.</p>
+
+    <h4 style="font-family:var(--font-mono);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--black);margin-bottom:8px">9. Modifications to Terms</h4>
+    <p style="margin-bottom:12px">We reserve the right to update these Terms at any time. We will notify registered users of material changes via email or in-app notification. Continued use of the Platform after changes constitutes acceptance of the updated Terms.</p>
+
+    <h4 style="font-family:var(--font-mono);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--black);margin-bottom:8px">10. Governing Law</h4>
+    <p style="margin-bottom:12px">These Terms are governed by the laws of the Republic of South Africa. Any disputes arising from these Terms or your use of the Platform shall be subject to the exclusive jurisdiction of the courts of South Africa.</p>
+
+    <p style="margin-top:16px;font-size:12px;color:var(--gray-400)">Last updated: September 2026</p>
+  </div>
+`;
+
+function openTermsModal() {
+  openModal("Terms and Conditions", TERMS_AND_CONDITIONS_HTML);
 }
 
 // ============================================================

@@ -103,6 +103,11 @@ function goToPlanPage() {
     toast("Please fill in: " + errors.join(", "), "error");
     return;
   }
+  const termsCheckbox = document.getElementById("reg-terms-agree");
+  if (termsCheckbox && !termsCheckbox.checked) {
+    toast("You must agree to the Terms and Conditions to continue", "error");
+    return;
+  }
   const privacyCheckbox = document.getElementById("reg-privacy-agree");
   if (privacyCheckbox && !privacyCheckbox.checked) {
     toast("You must agree to the Privacy Policy to continue", "error");
